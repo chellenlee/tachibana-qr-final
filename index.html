@@ -509,6 +509,9 @@ function closeStats() {
   document.getElementById('setup').style.display = '';
 }
 
+/**
+ * ▼▼▼ 経過速報機能 (リタイヤ除外・スタートID=2 実測タイム版) ▼▼▼
+ */
 async function showReport() {
   // 画面遷移
   document.getElementById('setup').style.display = 'none';
@@ -530,7 +533,6 @@ async function showReport() {
       return;
     }
 
-    // 地点IDの順序マップを作成
     const locationIndexMap = {};
     locations.forEach((loc, index) => {
       locationIndexMap[String(loc.id)] = index;
@@ -539,6 +541,7 @@ async function showReport() {
     // スタート地点ID設定
     const startLocationId = "2";
     
+    // ランナーごとの最新データを集計
     const runnerMap = new Map();
 
     snapshot.forEach(doc => {
@@ -546,39 +549,29 @@ async function showReport() {
       const bib = d.bibNumber;
       const lid = String(d.id);
       
-      // 地点の順番インデックスを取得
       const currentIndex = locationIndexMap[lid] !== undefined ? locationIndexMap[lid] : -1;
-      
-      // タイムスタンプをDateオブジェクトに変換
       const scanDate = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
 
       if (!runnerMap.has(bib)) {
-        // 初回登録
         runnerMap.set(bib, {
           latestData: d,
-          // 今回のデータがスタート地点(ID:2)なら、それをスタート時間として保持
           startScanTime: (lid === startLocationId) ? scanDate : null,
           _locationIndex: currentIndex
         });
       } else {
-        // 既存データあり
         const entry = runnerMap.get(bib);
 
-        // 1. スタート地点(ID:2)のデータを見つけたら、スタート時間を保存
         if (lid === startLocationId) {
           entry.startScanTime = scanDate;
         }
 
-        // 2. より先の地点（インデックスが大きい）なら最新データを更新
         if (currentIndex > entry._locationIndex) {
           entry.latestData = d;
           entry._locationIndex = currentIndex;
         }
-        // 同一地点なら、タイムスタンプが新しい方を採用
         else if (currentIndex === entry._locationIndex) {
            const currentTs = scanDate ? scanDate.getTime() : 0;
            const existingTs = entry.latestData.scanTimestamp ? entry.latestData.scanTimestamp.toMillis() : 0;
-           
            if (currentTs > existingTs) {
              entry.latestData = d;
            }
@@ -586,14 +579,23 @@ async function showReport() {
       }
     });
 
-    // マップから配列に変換（扱いやすいようにフラット化）
-    allScanDataForReport = Array.from(runnerMap.values()).map(entry => {
-      return {
-        ...entry.latestData,
-        _realStartTime: entry.startScanTime, // スタート地点での実測日時
-        _locationIndex: entry._locationIndex
-      };
-    });
+    // マップから配列に変換し、リタイヤ者を除外
+    allScanDataForReport = Array.from(runnerMap.values())
+      .map(entry => {
+        return {
+          ...entry.latestData,
+          _realStartTime: entry.startScanTime,
+          _locationIndex: entry._locationIndex
+        };
+      })
+      // ▼▼▼ 追加フィルタ：最新地点がリタイヤの場合はリストから除外 ▼▼▼
+      .filter(d => {
+        const isRetireId = String(d.id) === '99';
+        const isRetireName = d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'));
+        // IDが99でなく、かつ名前にリタイヤを含まないデータのみ残す
+        return !isRetireId && !isRetireName;
+      });
+      // ▲▲▲ 追加フィルタここまで ▲▲▲
 
     // 部門リスト作成
     const divisions = new Set(allScanDataForReport.map(d => d.division));
