@@ -886,7 +886,7 @@ async function uploadToFirebase(data) {
 
     // ▼▼▼ 4. リタイヤ速報の送信（トランザクションの外で実行） ▼▼▼
     // これにより、もし速報送信が失敗しても、上の「保存完了」は取り消されません
-    if (data.name.includes("リタイヤ") || data.name.includes("リタイア")) {
+    if (String(data.id) === '99' || data.name.includes("【リタイヤ】") || data.name.includes("【リタイヤ】")) {
       firestore.collection('broadcast').doc('latest_retire').set({
         bibNumber: data.bibNumber,
         runnerName: data.runnerName,
