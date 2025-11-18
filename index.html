@@ -119,13 +119,41 @@
     #popup h2 { margin-top: 0; font-size: 24px; }
     #popup p { margin: 5px 0; font-size: 20px; }
     #popup button { padding: 10px 20px; margin: 10px; font-size: 20px; }
+    /* ▼▼▼ リタイヤ速報バナーのスタイル (新規追加) ▼▼▼ */
+    #retire-banner {
+      position: fixed;
+      top: -100px; /* 初期状態は画面外 */
+      left: 0;
+      width: 100%;
+      background-color: #d32f2f; /* 赤色 */
+      color: white;
+      padding: 15px;
+      text-align: center;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      z-index: 10000; /* 最前面 */
+      transition: top 0.5s ease-in-out; /* スライド表示アニメーション */
+      box-sizing: border-box;
+    }
+    #retire-banner h3 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: bold;
+      color: #fff; /* 黄色い文字で強調 */
+    }
+    #retire-banner p {
+      margin: 5px 0 0;
+      font-size: 18px;
+    }
   </style>
 </head>
 
 <body>
 
 <div id="title-banner">橘湾岸ＱＲ2025秋</div>
-
+<div id="retire-banner">
+  <h3>⚠ リタイヤ速報</h3>
+  <p id="retire-info"></p>
+</div>
 <div id="setup">
   <h2 style="text-align:left; margin-left: 2em;">担当者名と地点を設定</h2>
   <input type="text" id="staffName" placeholder="担当者名を入力">
@@ -662,7 +690,7 @@ function getLocation() {
 }
   
 /**
- * QRコードスキャナーを開始する (位置情報取得対応版)
+ * QRコードスキャナーを開始する (ID99のみ位置情報取得版)
  */
 function startScanner() {
   const video = document.getElementById('video');
@@ -671,23 +699,26 @@ function startScanner() {
   }
   document.getElementById('message').textContent = '読み取り中...';
 
-  // コールバック関数を async に変更
+  // コールバック関数
   codeReader.decodeFromVideoDevice(undefined, video, async (result, err) => { 
     if (result) {
       codeReader.reset(); // カメラ停止
       
-      // ▼位置情報取得中の表示（ユーザーへのフィードバック）
-      document.getElementById('message').textContent = '位置情報取得中...';
-
       const text = result.text.trim();
       const parts = text.split('/');
       
       if (parts.length >= 4) {
         const [division, bibNumber, runnerName, gender, startTime = ''] = parts;
         
-        // ▼▼▼ 位置情報の取得処理 ▼▼▼
-        const locData = await getLocation();
-        // 取得完了したらメッセージ更新
+        let locData = null;
+
+        // ▼▼▼ 変更箇所：地点IDが '99' の時のみ位置情報を取得 ▼▼▼
+        if (selectedLocationId == '99') {
+          document.getElementById('message').textContent = '位置情報取得中...';
+          locData = await getLocation();
+        }
+        // ▲▲▲ 変更箇所ここまで ▲▲▲
+
         document.getElementById('message').textContent = '読み取り成功';
 
         const scanTimeObject = new Date();
@@ -700,7 +731,7 @@ function startScanner() {
           runnerName,
           gender,
           startTime,
-          // ▼▼▼ 緯度経度を追加 (取得できなければ null) ▼▼▼
+          // 取得していれば値を、していなければ null をセット
           latitude: locData ? locData.lat : null,
           longitude: locData ? locData.lng : null,
           
@@ -769,6 +800,9 @@ function endApp() {
   document.getElementById('result').style.display = 'none';
 }
 
+/**
+ * 読み取りデータをFirebase Firestoreにアップロードする (リタイヤ速報送信機能付き)
+ */
 async function uploadToFirebase(data) {
   if (!firestore) {
     console.error("Firestore is not initialized.");
@@ -786,7 +820,22 @@ async function uploadToFirebase(data) {
         throw new Error("already-exists");
       }
       transaction.set(docRef, data);
+      
+      // ▼▼▼ 追加箇所：リタイヤ地点なら「速報」ドキュメントを更新 ▼▼▼
+      if (data.name.includes("リタイヤ") || data.name.includes("リタイア")) {
+        const broadcastRef = firestore.collection('broadcast').doc('latest_retire');
+        transaction.set(broadcastRef, {
+          bibNumber: data.bibNumber,
+          runnerName: data.runnerName,
+          locationName: data.name,
+          time: data.time,
+          staff: data.staff,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp() // サーバー時刻
+        });
+      }
+      // ▲▲▲ 追加箇所ここまで ▲▲▲
     });
+    
     console.log("Transaction successfully committed (初回):", docId);
     document.getElementById('message').textContent = `${data.bibNumber} 保存完了`;
 
@@ -826,7 +875,65 @@ function showCustomPopup({ title = "", message = "", buttons = [], callback = nu
   overlay.style.display = 'flex';
 }
 
-// ▼▼▼ 3. 初期化処理 ▼▼▼
+// ▼▼▼ リタイヤ速報受信用のロジック (新規追加) ▼▼▼
+
+let lastRetireAlertTime = new Date().getTime(); // アプリ起動時刻を記録
+
+/**
+ * リタイヤ速報の監視を開始する
+ */
+function startRetireListener() {
+  // 'broadcast' コレクションの 'latest_retire' ドキュメントを監視
+  firestore.collection('broadcast').doc('latest_retire')
+    .onSnapshot((doc) => {
+      if (!doc.exists) return;
+      
+      const d = doc.data();
+      // 書き込み直後でタイムスタンプがまだ生成されていない場合は無視
+      if (!d.timestamp) return; 
+
+      // 発生時刻（ミリ秒）
+      const alertTime = d.timestamp.toMillis();
+      const now = new Date().getTime();
+
+      // アプリ起動後に発生した、かつ 10分以内 の新しい情報のみ通知する
+      // (過去のリタイヤ情報が起動時に毎回出るのを防ぐため)
+      if (alertTime > lastRetireAlertTime && (now - alertTime) < 10 * 60 * 1000) {
+        lastRetireAlertTime = alertTime; // 最新通知時刻を更新
+        showRetireAlert(d);
+      }
+    }, (error) => {
+      console.error("速報受信エラー:", error);
+    });
+}
+
+/**
+ * 速報バナーを表示する
+ */
+function showRetireAlert(data) {
+  const banner = document.getElementById('retire-banner');
+  const info = document.getElementById('retire-info');
+  
+  // 内容をセット
+  info.innerHTML = `
+    No.${data.bibNumber} <strong>${data.runnerName}</strong> さん<br>
+    場所: ${data.locationName}
+  `;
+  
+  // バイブレーション (長い振動で警告)
+  if (navigator.vibrate) {
+    navigator.vibrate([500, 200, 500]); 
+  }
+
+  // バナーをスライドダウン表示
+  banner.style.top = "0";
+
+  // 7秒後に自動で隠す
+  setTimeout(() => {
+    banner.style.top = "-200px";
+  }, 7000);
+}
+// ▼▼▼ 3. 初期化処理 (修正版) ▼▼▼
 
 try {
   firebase.initializeApp(firebaseConfig);
@@ -838,6 +945,7 @@ try {
 
   setTimeout(() => {
     initializeAppLogic();
+    startRetireListener(); // ★ここに追加！★
   }, 300);
 
 } catch (e) {
