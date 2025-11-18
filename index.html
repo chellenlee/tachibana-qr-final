@@ -801,9 +801,11 @@ function endApp() {
 }
 
 /**
- * 読み取りデータをFirebase Firestoreにアップロードする (リタイヤ速報送信機能付き)
+ * 読み取りデータをFirebase Firestoreにアップロードする (修正版)
+ * ※リタイヤ速報をトランザクション外に移動し、保存エラーを回避
  */
 async function uploadToFirebase(data) {
+  // 1. データベース接続チェック
   if (!firestore) {
     console.error("Firestore is not initialized.");
     document.getElementById('message').textContent = 'DB未接続エラー'; 
@@ -814,32 +816,40 @@ async function uploadToFirebase(data) {
   const docRef = firestore.collection("scans").doc(docId);
 
   try {
+    // ▼▼▼ 2. 計測データの保存（最優先処理・トランザクション） ▼▼▼
+    // ここは絶対に成功させる必要がある部分です
     await firestore.runTransaction(async (transaction) => {
       const doc = await transaction.get(docRef);
       if (doc.exists) {
+        // 既にデータがあればエラーを投げて保存しない（重複防止）
         throw new Error("already-exists");
       }
+      // 新規なら保存
       transaction.set(docRef, data);
-      
-      // ▼▼▼ 追加箇所：リタイヤ地点なら「速報」ドキュメントを更新 ▼▼▼
-      if (data.name.includes("リタイヤ") || data.name.includes("リタイア")) {
-        const broadcastRef = firestore.collection('broadcast').doc('latest_retire');
-        transaction.set(broadcastRef, {
-          bibNumber: data.bibNumber,
-          runnerName: data.runnerName,
-          locationName: data.name,
-          time: data.time,
-          staff: data.staff,
-          timestamp: firebase.firestore.FieldValue.serverTimestamp() // サーバー時刻
-        });
-      }
-      // ▲▲▲ 追加箇所ここまで ▲▲▲
     });
     
+    // ▼▼▼ 3. 保存成功後の処理 ▼▼▼
     console.log("Transaction successfully committed (初回):", docId);
     document.getElementById('message').textContent = `${data.bibNumber} 保存完了`;
 
+    // ▼▼▼ 4. リタイヤ速報の送信（トランザクションの外で実行） ▼▼▼
+    // これにより、もし速報送信が失敗しても、上の「保存完了」は取り消されません
+    if (data.name.includes("リタイヤ") || data.name.includes("リタイア")) {
+      firestore.collection('broadcast').doc('latest_retire').set({
+        bibNumber: data.bibNumber,
+        runnerName: data.runnerName,
+        locationName: data.name,
+        time: data.time,
+        staff: data.staff,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch((err) => {
+        // 速報だけ失敗した場合はログに残すだけで、ユーザーにはエラーを見せない
+        console.warn("速報の送信に失敗しました（データ保存は成功）:", err);
+      });
+    }
+
   } catch (error) {
+    // ▼▼▼ 5. エラーハンドリング（保存失敗時） ▼▼▼
     if (error.message === "already-exists") {
       console.warn("Transaction failed (重複スキャン):", docId);
       document.getElementById('message').textContent = `${data.bibNumber} は読み取り済み`;
