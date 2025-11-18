@@ -144,6 +144,23 @@
       margin: 5px 0 0;
       font-size: 18px;
     }
+    /* ▼▼▼ リタイヤ登録ボタンのデザイン (新規追加) ▼▼▼ */
+    .retire-button {
+      background: linear-gradient(#d32f2f, #8e0000); /* 赤色グラデーション */
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 20px;
+      border-radius: 8px;
+      box-shadow: 0 5px #444444;
+      cursor: pointer;
+      display: inline-block;
+      margin-top: 15px;
+    }
+    .retire-button:active {
+      box-shadow: 0 2px #444444;
+      transform: translateY(3px);
+    }
   </style>
 </head>
 
@@ -168,6 +185,8 @@
   <button class="stats-button" onclick="showStats()">通過状況</button>
   <br>
   <button class="report-button" onclick="showReport()">リアルタイム速報</button>
+  <br>
+  <button class="retire-button" onclick="startRetireScan()">リタイヤ登録</button>
 </div>
   
 <div id="history-view" style="display:none;">
@@ -314,6 +333,39 @@ function startApp() {
   document.getElementById('reader').style.display = '';
   document.getElementById('result').style.display = '';
 
+  startScanner();
+}
+
+  /**
+ * ▼▼▼ リタイヤ登録（ID:99）専用のスキャン開始関数 (新規追加) ▼▼▼
+ */
+function startRetireScan() {
+  // 1. 担当者名のチェック（これがないと保存できないため）
+  staff = document.getElementById('staffName').value.trim();
+  if (!staff) {
+    showCustomPopup({
+      title: "確認",
+      message: "担当者名を入力してください。",
+      buttons: [{ text: "OK", value: true }]
+    });
+    return;
+  }
+  localStorage.setItem('staffName', staff);
+
+  // 2. 強制的に地点IDを99に設定
+  selectedLocationId = '99';
+  
+  // 3. 地点名を設定（マスターにあればそれを使用、なければ固定文字）
+  // ※locations配列は初期化時にロード済み
+  const retireLoc = locations.find(loc => String(loc.id) === '99');
+  selectedLocationName = retireLoc ? retireLoc.name : "リタイヤ";
+
+  // 4. 画面切り替え（プルダウンの値は変更せずに維持されます）
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('reader').style.display = '';
+  document.getElementById('result').style.display = '';
+
+  // 5. スキャナー起動
   startScanner();
 }
 
