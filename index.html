@@ -355,8 +355,8 @@ function closeHistory() {
   document.getElementById('setup').style.display = '';
 }
 
-// --- 統計系関数 ---
 async function showStats() {
+  // 画面遷移
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('result').style.display = 'none';
@@ -366,6 +366,7 @@ async function showStats() {
   listDiv.innerHTML = '全データを集計中...';
 
   try {
+    // 全データを取得
     const snapshot = await firestore.collection('scans').get();
     
     const counts = {};
@@ -373,8 +374,10 @@ async function showStats() {
 
     snapshot.forEach(doc => {
       const d = doc.data();
-      const lid = d.id;
+      // IDは数値の場合と文字列の場合があるため文字列に統一
+      const lid = String(d.id); 
       const lname = d.name || "";
+
       if (lname.includes("リタイヤ") || lname.includes("リタイア")) {
         totalRetire++;
       } else {
@@ -386,16 +389,19 @@ async function showStats() {
     let html = '<table class="stats-table">';
     html += '<tr><th>地点</th><th>通過</th><th>未通過</th><th>リタイヤ</th></tr>';
 
-    let totalRunners = 0;
-    if (locations.length > 0) {
-      totalRunners = counts[locations[0].id] || 0;
-    }
+    // スタート地点(ID:2)の通過数を参加総数とする
+    const startLocationId = "2"; 
+    let totalRunners = counts[startLocationId] || 0;
 
     locations.forEach((loc) => {
       if (loc.name.includes("リタイヤ") || loc.name.includes("リタイア")) {
         return;
       }
-      const passed = counts[loc.id] || 0;
+
+      const lid = String(loc.id);
+      const passed = counts[lid] || 0;
+      
+      // 未通過 = 参加総数 - 現在地通過数 - リタイヤ総数
       let unpassed = totalRunners - passed - totalRetire;
       if (unpassed < 0) unpassed = 0;
 
@@ -408,7 +414,8 @@ async function showStats() {
     });
 
     html += '</table>';
-    html += `<p style="text-align:right; font-size:14px; color:#666;">※未通過数 = スタート数 - 通過済 - リタイヤ</p>`;
+    html += `<p style="text-align:right; font-size:14px; color:#666;">※未通過数 = スタート数(ID:2)基準</p>`;
+    
     listDiv.innerHTML = html;
 
   } catch (error) {
@@ -422,8 +429,8 @@ function closeStats() {
   document.getElementById('setup').style.display = '';
 }
 
-// --- ▼▼▼ 経過速報機能 (新規追加) ▼▼▼ ---
 async function showReport() {
+  // 画面遷移
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('result').style.display = 'none';
@@ -432,12 +439,10 @@ async function showReport() {
   const listDiv = document.getElementById('report-list');
   listDiv.innerHTML = '全データを解析中...';
   
-  // プルダウンをリセット
   const select = document.getElementById('report-division-select');
   select.innerHTML = '<option value="">部門を抽出中...</option>';
 
   try {
-    // 全データを取得
     const snapshot = await firestore.collection('scans').get();
     if (snapshot.empty) {
       listDiv.innerHTML = '<p>データがありません。</p>';
@@ -445,44 +450,73 @@ async function showReport() {
       return;
     }
 
-    // 1. ランナー毎の最新地点データを抽出
-    // キー: bibNumber, 値: そのランナーの最新のscanData
-    const runnerMap = new Map();
-
-    // 地点IDの順序を知るためのマップ (id -> index)
+    // 地点IDの順序マップを作成
     const locationIndexMap = {};
     locations.forEach((loc, index) => {
-      locationIndexMap[loc.id] = index;
+      locationIndexMap[String(loc.id)] = index;
     });
+
+    // スタート地点ID設定
+    const startLocationId = "2";
+    
+    const runnerMap = new Map();
 
     snapshot.forEach(doc => {
       const d = doc.data();
       const bib = d.bibNumber;
+      const lid = String(d.id);
       
-      // 現在のデータの地点インデックス
-      const currentIndex = locationIndexMap[d.id] !== undefined ? locationIndexMap[d.id] : -1;
+      // 地点の順番インデックスを取得
+      const currentIndex = locationIndexMap[lid] !== undefined ? locationIndexMap[lid] : -1;
+      
+      // タイムスタンプをDateオブジェクトに変換
+      const scanDate = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
 
       if (!runnerMap.has(bib)) {
-        // 初めてのゼッケンなら登録
-        d._locationIndex = currentIndex; // ソート用にインデックスを付与
-        runnerMap.set(bib, d);
+        // 初回登録
+        runnerMap.set(bib, {
+          latestData: d,
+          // 今回のデータがスタート地点(ID:2)なら、それをスタート時間として保持
+          startScanTime: (lid === startLocationId) ? scanDate : null,
+          _locationIndex: currentIndex
+        });
       } else {
-        // 既に登録済みなら比較
-        const existing = runnerMap.get(bib);
-        // より先の地点（インデックスが大きい）なら更新
-        if (currentIndex > existing._locationIndex) {
-          d._locationIndex = currentIndex;
-          runnerMap.set(bib, d);
+        // 既存データあり
+        const entry = runnerMap.get(bib);
+
+        // 1. スタート地点(ID:2)のデータを見つけたら、スタート時間を保存
+        if (lid === startLocationId) {
+          entry.startScanTime = scanDate;
+        }
+
+        // 2. より先の地点（インデックスが大きい）なら最新データを更新
+        if (currentIndex > entry._locationIndex) {
+          entry.latestData = d;
+          entry._locationIndex = currentIndex;
+        }
+        // 同一地点なら、タイムスタンプが新しい方を採用
+        else if (currentIndex === entry._locationIndex) {
+           const currentTs = scanDate ? scanDate.getTime() : 0;
+           const existingTs = entry.latestData.scanTimestamp ? entry.latestData.scanTimestamp.toMillis() : 0;
+           
+           if (currentTs > existingTs) {
+             entry.latestData = d;
+           }
         }
       }
     });
 
-    // マップから配列に戻す
-    allScanDataForReport = Array.from(runnerMap.values());
+    // マップから配列に変換（扱いやすいようにフラット化）
+    allScanDataForReport = Array.from(runnerMap.values()).map(entry => {
+      return {
+        ...entry.latestData,
+        _realStartTime: entry.startScanTime, // スタート地点での実測日時
+        _locationIndex: entry._locationIndex
+      };
+    });
 
-    // 2. 部門リストを作成してプルダウンにセット
+    // 部門リスト作成
     const divisions = new Set(allScanDataForReport.map(d => d.division));
-    // ソートしてセット
     const sortedDivisions = Array.from(divisions).sort();
     
     select.innerHTML = '<option value="">部門を選択...</option>';
@@ -501,29 +535,21 @@ async function showReport() {
   }
 }
 
-// 経過時間を計算するヘルパー関数
-function calculateElapsedTime(scanDateObj, startTimeStr) {
-  if (!startTimeStr) return "--:--";
+function calculateElapsedTime(currentDateObj, startScanDateObj) {
+  if (!currentDateObj || !startScanDateObj) return "--:--";
 
-  // スタート時間のパース (HH:MM:SS または HH:MM)
-  const parts = startTimeStr.split(':');
-  const startH = parseInt(parts[0], 10);
-  const startM = parseInt(parts[1], 10);
+  // 1. スタート時間を30分単位に丸める (四捨五入)
+  // 30分 = 30 * 60 * 1000 ミリ秒
+  const MS_PER_30_MIN = 30 * 60 * 1000;
   
-  // スキャンされた日時を基準にする
-  const startObj = new Date(scanDateObj);
-  startObj.setHours(startH, startM, 0, 0);
+  // getTime()でミリ秒にし、30分単位で割って四捨五入し、また掛け戻す
+  const roundedStartMs = Math.round(startScanDateObj.getTime() / MS_PER_30_MIN) * MS_PER_30_MIN;
+  const roundedStartDate = new Date(roundedStartMs);
 
-  // もし「スタート時間 > スキャン時間」なら、スタートは「前日」とみなす
-  // 例: スタート23:00, スキャン01:00
-  if (startObj > scanDateObj) {
-    startObj.setDate(startObj.getDate() - 1);
-  }
-  // 注: 24時間以上のレースの場合、このロジックでは日付情報がないと正確な総時間は出ませんが、
-  // QRコードに日付がない以上、最も合理的な推定値（直近の該当時刻）を採用します。
-
-  const diffMs = scanDateObj - startObj;
-  if (diffMs < 0) return "--:--"; // 念のため
+  // 2. 経過時間を計算
+  const diffMs = currentDateObj - roundedStartDate;
+  
+  if (diffMs < 0) return "Start前"; 
 
   const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
   const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -535,7 +561,6 @@ function calculateElapsedTime(scanDateObj, startTimeStr) {
   return `${hStr}:${mStr}`;
 }
 
-// プルダウン変更時の表示更新
 function updateReportView() {
   const select = document.getElementById('report-division-select');
   const selectedDiv = select.value;
@@ -546,30 +571,38 @@ function updateReportView() {
     return;
   }
 
-  // 選択された部門でフィルタリング
+  // allScanDataForReport が未定義の場合のエラー回避
+  if (typeof allScanDataForReport === 'undefined') {
+    console.error("データが読み込まれていません");
+    return;
+  }
+
   let filtered = allScanDataForReport.filter(d => d.division === selectedDiv);
 
-  // ソート: 1. 地点ID順(降順=先に行っている順) 2. 経過時間(昇順=速い順)
-  // ※地点ID順は _locationIndex を利用
+  // ソート: 1. 地点ID順(降順) 2. 経過時間(昇順)
   filtered.sort((a, b) => {
     if (b._locationIndex !== a._locationIndex) {
-      return b._locationIndex - a._locationIndex; // 進んでいる順
+      return b._locationIndex - a._locationIndex; 
     }
-    // 同一地点ならスキャンタイムスタンプが早い順
     const tA = a.scanTimestamp ? a.scanTimestamp.toMillis() : 0;
     const tB = b.scanTimestamp ? b.scanTimestamp.toMillis() : 0;
     return tA - tB; 
   });
 
-  // テーブル生成
   let html = '<table class="report-table">';
   html += '<tr><th>No.</th><th>氏名</th><th>地点</th><th>経過</th></tr>';
 
   filtered.forEach(d => {
     let elapsedTime = "--:--";
-    if (d.scanTimestamp && d.startTime) {
-      // Firestore Timestamp -> Date object
-      elapsedTime = calculateElapsedTime(d.scanTimestamp.toDate(), d.startTime);
+    
+    // 現在地点のタイムスタンプ
+    const currentObj = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
+    
+    // スタート地点のスキャン時刻 (_realStartTime) がある場合のみ計算
+    if (currentObj && d._realStartTime) {
+      elapsedTime = calculateElapsedTime(currentObj, d._realStartTime);
+    } else if (!d._realStartTime) {
+        elapsedTime = "Start未"; // スタート未通過
     }
 
     html += `<tr>
