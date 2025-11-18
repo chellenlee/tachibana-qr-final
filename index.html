@@ -561,6 +561,9 @@ function calculateElapsedTime(currentDateObj, startScanDateObj) {
   return `${hStr}:${mStr}`;
 }
 
+/**
+ * ▼▼▼ 4. プルダウン変更時の表示更新（順位表示追加版） ▼▼▼
+ */
 function updateReportView() {
   const select = document.getElementById('report-division-select');
   const selectedDiv = select.value;
@@ -579,7 +582,7 @@ function updateReportView() {
 
   let filtered = allScanDataForReport.filter(d => d.division === selectedDiv);
 
-  // ソート: 1. 地点ID順(降順) 2. 経過時間(昇順)
+  // ソート: 1. 地点ID順(降順=先に行っている順) 2. 経過時間(昇順=速い順)
   filtered.sort((a, b) => {
     if (b._locationIndex !== a._locationIndex) {
       return b._locationIndex - a._locationIndex; 
@@ -589,10 +592,13 @@ function updateReportView() {
     return tA - tB; 
   });
 
+  // テーブル生成
   let html = '<table class="report-table">';
-  html += '<tr><th>No.</th><th>氏名</th><th>地点</th><th>経過</th></tr>';
+  // ▼ ヘッダーに「順位」を追加
+  html += '<tr><th>順位</th><th>No.</th><th>氏名</th><th>地点</th><th>経過</th></tr>';
 
-  filtered.forEach(d => {
+  // ▼ index引数を利用して順位を表示
+  filtered.forEach((d, index) => {
     let elapsedTime = "--:--";
     
     // 現在地点のタイムスタンプ
@@ -606,7 +612,7 @@ function updateReportView() {
     }
 
     html += `<tr>
-      <td>${d.bibNumber}</td>
+      <td style="font-weight:bold;">${index + 1}</td> <td>${d.bibNumber}</td>
       <td style="text-align:left;">${d.runnerName}</td>
       <td style="text-align:left;">${d.name}</td>
       <td>${elapsedTime}</td>
