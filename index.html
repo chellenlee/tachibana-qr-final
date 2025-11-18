@@ -137,11 +137,11 @@
   <button class="start-button" onclick="startApp()">開始</button>
   <br>
   <button class="history-button" onclick="showHistory()">履歴確認</button>
-  <button class="report-button" onclick="showReport()">経過速報</button>
+  <button class="stats-button" onclick="showStats()">通過状況</button>
   <br>
-  <button class="stats-button" onclick="showStats()">通過情報</button>
+  <button class="report-button" onclick="showReport()">リアルタイム速報</button>
 </div>
-
+  
 <div id="history-view" style="display:none;">
   <h3>読み取り履歴</h3>
   <p style="font-size:16px; margin:0;">担当: <span id="history-staff-display" style="font-weight:bold;"></span></p>
@@ -158,7 +158,7 @@
 </div>
 
 <div id="report-view" style="display:none;">
-  <h3>経過速報</h3>
+  <h3>リアルタイム速報</h3>
   <div style="text-align: center; margin-bottom: 10px;">
     <select id="report-division-select" onchange="updateReportView()" style="width: 90%; font-size: 18px;">
       <option value="">部門を選択...</option>
