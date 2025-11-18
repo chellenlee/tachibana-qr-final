@@ -630,7 +630,40 @@ function closeReport() {
 }
 // --- ▲▲▲ 経過速報機能ここまで ▲▲▲ ---
 
+/**
+ * ▼▼▼ 位置情報を取得するヘルパー関数 (新規追加) ▼▼▼
+ */
+function getLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      console.warn("Geolocation is not supported by this browser.");
+      resolve(null);
+      return;
+    }
 
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        });
+      },
+      (error) => {
+        console.warn("位置情報の取得に失敗:", error.message);
+        resolve(null); // エラーでもnullを返して処理を続行させる
+      },
+      {
+        enableHighAccuracy: true, // 高精度モード
+        timeout: 5000,            // 5秒でタイムアウト
+        maximumAge: 0             // キャッシュを使わない
+      }
+    );
+  });
+}
+  
+/**
+ * QRコードスキャナーを開始する (位置情報取得対応版)
+ */
 function startScanner() {
   const video = document.getElementById('video');
   if (!codeReader) {
@@ -638,10 +671,13 @@ function startScanner() {
   }
   document.getElementById('message').textContent = '読み取り中...';
 
-  codeReader.decodeFromVideoDevice(undefined, video, (result, err) => { 
+  // コールバック関数を async に変更
+  codeReader.decodeFromVideoDevice(undefined, video, async (result, err) => { 
     if (result) {
-      codeReader.reset();
-      document.getElementById('message').textContent = '読み取り成功';
+      codeReader.reset(); // カメラ停止
+      
+      // ▼位置情報取得中の表示（ユーザーへのフィードバック）
+      document.getElementById('message').textContent = '位置情報取得中...';
 
       const text = result.text.trim();
       const parts = text.split('/');
@@ -649,6 +685,11 @@ function startScanner() {
       if (parts.length >= 4) {
         const [division, bibNumber, runnerName, gender, startTime = ''] = parts;
         
+        // ▼▼▼ 位置情報の取得処理 ▼▼▼
+        const locData = await getLocation();
+        // 取得完了したらメッセージ更新
+        document.getElementById('message').textContent = '読み取り成功';
+
         const scanTimeObject = new Date();
         
         const scanData = {
@@ -659,6 +700,10 @@ function startScanner() {
           runnerName,
           gender,
           startTime,
+          // ▼▼▼ 緯度経度を追加 (取得できなければ null) ▼▼▼
+          latitude: locData ? locData.lat : null,
+          longitude: locData ? locData.lng : null,
+          
           scanTimestamp: firebase.firestore.Timestamp.fromDate(scanTimeObject),
           date: scanTimeObject.toLocaleDateString('ja-JP'),
           time: scanTimeObject.toLocaleTimeString('ja-JP'),
