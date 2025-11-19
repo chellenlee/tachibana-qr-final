@@ -1024,7 +1024,7 @@ async function uploadToFirebase(data) {
     console.log("Transaction successfully committed (初回):", docId);
     document.getElementById('message').textContent = `${data.bibNumber} 保存完了`;
 
-    if (String(data.id) === '99' || data.name.includes("【リタイヤ】") || data.name.includes("【リタイヤ】")) {
+    if (String(data.id) === '99' || data.name.includes("リタイヤ") || data.name.includes("リタイヤ")) {
       firestore.collection('broadcast').doc('latest_retire').set({
         bibNumber: data.bibNumber,
         runnerName: data.runnerName,
