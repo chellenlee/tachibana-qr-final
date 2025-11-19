@@ -702,6 +702,7 @@ function updateReportView() {
 
   let filtered = allScanDataForReport.filter(d => d.division === selectedDiv);
 
+  // ソート順：地点インデックス降順（奥にいる人順）＞ スキャン時刻昇順（先に着いた順）
   filtered.sort((a, b) => {
     if (b._locationIndex !== a._locationIndex) {
       return b._locationIndex - a._locationIndex; 
@@ -711,25 +712,37 @@ function updateReportView() {
     return tA - tB; 
   });
 
+  // ▼▼▼ ヘッダーに「通過」を追加 ▼▼▼
   let html = '<table class="report-table">';
-  html += '<tr><th>順位</th><th>No.</th><th>氏名</th><th>地点</th><th>経過</th></tr>';
+  html += '<tr><th>順位</th><th>No.</th><th>氏名</th><th>地点</th><th>通過</th><th>経過</th></tr>';
 
   filtered.forEach((d, index) => {
     let elapsedTime = "--:--";
     
     const currentObj = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
     
+    // 経過時間の計算
     if (currentObj && d._realStartTime) {
       elapsedTime = calculateElapsedTime(currentObj, d._realStartTime);
     } else if (!d._realStartTime) {
         elapsedTime = "Start未"; 
     }
 
+    // ▼▼▼ 通過日時のフォーマット作成 (例: 19日 14:30) ▼▼▼
+    let passageLabel = d.time || ""; // 予備
+    if (currentObj) {
+      const dd = currentObj.getDate();
+      const hh = String(currentObj.getHours()).padStart(2, '0');
+      const mm = String(currentObj.getMinutes()).padStart(2, '0');
+      passageLabel = `${dd}日<br>${hh}:${mm}`; // 日付と時刻を改行して表示
+    }
+
     html += `<tr>
       <td style="font-weight:bold;">${index + 1}</td> <td>${d.bibNumber}</td>
       <td style="text-align:left;">${d.runnerName}</td>
       <td style="text-align:left;">${d.name}</td>
-      <td>${elapsedTime}</td>
+      <td style="font-size: 14px; line-height: 1.2;">${passageLabel}</td>
+      <td style="font-weight:bold;">${elapsedTime}</td>
     </tr>`;
   });
   html += '</table>';
