@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>地点マスター登録ツール</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 300px; font-family: monospace; }
+    button { padding: 15px; font-size: 18px; cursor: pointer; background: #003366; color: white; border: none; }
+    #status { margin-top: 20px; font-weight: bold; color: blue; }
+  </style>
+</head>
+<body>
+
+<h2>地点マスター登録ツール</h2>
+<p>Excelから変換したJSONデータを下に貼り付けて、「登録実行」を押してください。</p>
+<p>※既存の「locations_master」コレクションに上書き・追加されます。</p>
+
+<textarea id="jsonInput" placeholder='[ {"id":1, "name":"地点A"}, {"id":2, "name":"地点B"} ... ]'></textarea>
+<br><br>
+<button onclick="uploadData()">登録実行</button>
+
+<div id="status"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+<script>
+// あなたのFirebase設定
+const firebaseConfig = {
+  apiKey: "AIzaSyD_Aic5iQ7OYGO9qTv0patspCKbwsuYcs8",
+  authDomain: "tachibana-wangan.firebaseapp.com",
+  projectId: "tachibana-wangan",
+  storageBucket: "tachibana-wangan.firebasestorage.app",
+  messagingSenderId: "963128842192",
+  appId: "1:963128842192:web:5ee0eb05d3df5e7c63cbd5"
+};
+
+firebase.initializeApp(firebaseConfig);
+const firestore = firebase.firestore();
+
+async function uploadData() {
+  const input = document.getElementById('jsonInput').value;
+  const status = document.getElementById('status');
+  
+  if (!input) {
+    alert("JSONデータを貼り付けてください");
+    return;
+  }
+
+  try {
+    const data = JSON.parse(input);
+    if (!Array.isArray(data)) {
+      alert("データ形式が配列（[...]）ではありません。");
+      return;
+    }
+
+    if (!confirm(`${data.length} 件の地点データを登録しますか？`)) return;
+
+    status.textContent = "登録処理中...";
+
+    // バッチ書き込み（一度にまとめて送信）の準備
+    // ※Firestoreのバッチは一度に500件までです。それ以上の場合は分割が必要ですが、今回は500件以内と想定します。
+    const batch = firestore.batch();
+    
+    data.forEach(item => {
+      // id と name があるか確認
+      if (item.id === undefined || !item.name) {
+        console.warn("スキップ（データ不備）:", item);
+        return;
+      }
+
+      // ドキュメントIDを「id」にするか、自動生成にするか。
+      // 今回は管理しやすくするため、データ内の "id" をドキュメントIDとして使います。
+      // これにより、同じIDなら上書き修正が可能になります。
+      const docRef = firestore.collection("locations_master").doc(String(item.id));
+      
+      batch.set(docRef, {
+        id: item.id,     // 並び順用
+        name: item.name  // 表示用
+      });
+    });
+
+    // コミット（送信）
+    await batch.commit();
+
+    status.textContent = "登録完了しました！";
+    status.style.color = "green";
+    alert("登録が完了しました。");
+
+  } catch (e) {
+    console.error(e);
+    status.textContent = "エラーが発生しました: " + e.message;
+    status.style.color = "red";
+    alert("JSONの形式が正しくないか、通信エラーです。");
+  }
+}
+</script>
+
+</body>
+</html>
