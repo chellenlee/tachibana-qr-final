@@ -7,7 +7,7 @@ self.addEventListener('install', (event) => {
         './manifest.json',
         './icon.png',
         './icon-192.png',
-        'https://unpkg.com/@zxing/library@latest'
+        'https://unpkg.com/@zxing/library@latest',
         'https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js',
         'https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js'
       ]);
