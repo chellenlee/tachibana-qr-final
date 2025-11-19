@@ -48,18 +48,23 @@
     input, select, button { padding: 12px; font-size: 20px; margin: 8px; }
     #message { font-size: 22px; font-weight: bold; color: green; margin: 15px; }
 
-    /* ボタンのデザイン */
+/* ▼▼▼ ボタンのデザイン変更（ここを上書き） ▼▼▼ */
     .save-button, .start-button, .history-button, .stats-button, .report-button, .retire-button, .retire-list-button {
       color: white;
       border: none;
-      padding: 10px 20px;
+      padding: 10px;       /* タップしやすいように高さを確保 */
       font-size: 20px;
       border-radius: 8px;
       box-shadow: 0 5px #444444;
       cursor: pointer;
-      display: inline-block;
-      margin-top: 15px;
+      
+      /* レイアウト設定 */
+      display: block;      /* 縦積みにする */
+      width: 50%;          /* 幅を画面の80%（入力欄と同じ）にする */
+      margin: 15px auto;   /* 上下15px、左右自動（中央寄せ） */
+      text-align: center;
     }
+
     .save-button, .start-button {
       background: linear-gradient(#888888, #666666);
     }
@@ -71,15 +76,16 @@
     .retire-button {
       background: linear-gradient(#d32f2f, #8e0000); 
     }
-    /* ▼▼▼ リタイヤ一覧ボタン（オレンジ〜赤系）新規追加 ▼▼▼ */
+    /* リタイヤ一覧ボタン（オレンジ〜赤系） */
     .retire-list-button {
-      background: linear-gradient(#d32f2f, #8e0000);
+      background: linear-gradient(#d32f2f, #8e0000); /* 色を少し変えて区別しやすくしました */
     }
 
     .save-button:active, .start-button:active, .history-button:active, .stats-button:active, .report-button:active, .retire-button:active, .retire-list-button:active {
       box-shadow: 0 2px #444444;
       transform: translateY(3px);
     }
+    /* ▲▲▲ 修正ここまで ▲▲▲ */
 
     /* テーブル共通スタイル */
     .history-table, .stats-table, .report-table, .retire-table {
