@@ -73,7 +73,7 @@
     }
     /* ▼▼▼ リタイヤ一覧ボタン（オレンジ〜赤系）新規追加 ▼▼▼ */
     .retire-list-button {
-      background: linear-gradient(#ef5350, #b71c1c);
+      background: linear-gradient(#d32f2f, #8e0000);
     }
 
     .save-button:active, .start-button:active, .history-button:active, .stats-button:active, .report-button:active, .retire-button:active, .retire-list-button:active {
@@ -173,7 +173,7 @@
     <option value="">地点を選択</option>
   </select>
   <br>
-  <button class="start-button" onclick="startApp()">開始</button>
+  <button class="start-button" onclick="startApp()">読み取り開始</button>
   <br>
   <button class="history-button" onclick="showHistory()">履歴確認</button>
   <button class="stats-button" onclick="showStats()">通過状況</button>
@@ -181,7 +181,7 @@
   <button class="report-button" onclick="showReport()">リアルタイム速報</button>
   <br>
   <button class="retire-button" onclick="startRetireScan()">リタイヤ登録</button>
-  <button class="retire-list-button" onclick="showRetireList()">リタイヤ一覧</button>
+  <button class="retire-list-button" onclick="showRetireList()">リタイヤリスト</button>
 </div>
   
 <div id="history-view" style="display:none;">
