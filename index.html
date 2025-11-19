@@ -757,43 +757,87 @@ function closeReport() {
 }
 
 /**
- * ▼▼▼ リタイヤ一覧表示機能 (新規追加) ▼▼▼
+ * ▼▼▼ リタイヤ一覧表示機能 (修正版) ▼▼▼
  */
 async function showRetireList() {
   document.getElementById('setup').style.display = 'none';
   document.getElementById('retire-list-view').style.display = 'block';
 
   const listDiv = document.getElementById('retire-list-content');
-  listDiv.innerHTML = 'リタイヤ情報を取得中...';
+  listDiv.innerHTML = '全データを解析してリタイヤ状況を取得中...';
 
   try {
-    // IDが '99' (リタイヤ) のドキュメントを取得
-    const snapshot = await firestore.collection('scans')
-                                    .where('id', '==', '99')
-                                    .get();
+    // リタイヤ情報だけでなく、直前の位置を知るために「全スキャン」を取得します
+    const snapshot = await firestore.collection('scans').get();
 
     if (snapshot.empty) {
-      listDiv.innerHTML = '<p>リタイヤ登録されたデータはありません。</p>';
+      listDiv.innerHTML = '<p>データがありません。</p>';
       return;
     }
 
-    let docs = snapshot.docs.map(doc => doc.data());
+    // 1. データをランナーごとに整理する
+    // runners[ゼッケン] = { retireData: {}, lastNormalData: {} }
+    const runners = {};
+
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      const bib = d.bibNumber;
+      const lid = String(d.id);
+      const isRetire = (lid === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'))));
+
+      if (!runners[bib]) {
+        runners[bib] = { retireData: null, lastNormalData: null };
+      }
+
+      if (isRetire) {
+        // リタイヤデータを保持
+        runners[bib].retireData = d;
+      } else {
+        // 通常の通過データの場合、一番新しいものを保持（＝最終通過地点）
+        const currentLast = runners[bib].lastNormalData;
+        
+        const thisTime = d.scanTimestamp ? d.scanTimestamp.toMillis() : 0;
+        const lastTime = (currentLast && currentLast.scanTimestamp) ? currentLast.scanTimestamp.toMillis() : -1;
+
+        if (thisTime > lastTime) {
+          runners[bib].lastNormalData = d;
+        }
+      }
+    });
+
+    // 2. リタイヤした人のリストを作成
+    const retireList = [];
+    Object.keys(runners).forEach(bib => {
+      const r = runners[bib];
+      if (r.retireData) {
+        retireList.push({
+          ...r.retireData,
+          // 直前の地点名を取得（なければ「Start前」や「不明」）
+          _lastLocationName: r.lastNormalData ? r.lastNormalData.name : 'Start前'
+        });
+      }
+    });
+
+    if (retireList.length === 0) {
+      listDiv.innerHTML = '<p>リタイヤ登録されたデータはありません。</p>';
+      return;
+    }
     
-    // 日付の新しい順にソート
-    docs.sort((a, b) => {
+    // 3. 日付の新しい順にソート
+    retireList.sort((a, b) => {
       const tA = a.scanTimestamp ? a.scanTimestamp.toMillis() : 0;
       const tB = b.scanTimestamp ? b.scanTimestamp.toMillis() : 0;
       return tB - tA; 
     });
 
+    // 4. テーブル生成（列を追加：部門, No, 氏名, ★最終通過, 日時, 位置）
     let html = '<table class="retire-table">';
-    html += '<tr><th>部門</th><th>No.</th><th>氏名</th><th>日時</th><th>位置</th></tr>';
+    html += '<tr><th>部門</th><th>No.</th><th>氏名</th><th>最終通過</th><th>日時</th><th>位置</th></tr>';
 
-    docs.forEach(d => {
+    retireList.forEach(d => {
       // 位置情報リンクの作成
       let locationLink = "ー";
       if (d.latitude && d.longitude) {
-        // Google Mapsへのリンク
         const mapUrl = `https://www.google.com/maps?q=${d.latitude},${d.longitude}`;
         locationLink = `<a href="${mapUrl}" target="_blank" style="text-decoration:underline; color:blue; cursor:pointer;">📍確認</a>`;
       }
@@ -802,13 +846,14 @@ async function showRetireList() {
         <td>${d.division}</td>
         <td>${d.bibNumber}</td>
         <td style="text-align:left;">${d.runnerName}</td>
+        <td style="font-weight:bold; color:#555;">${d._lastLocationName}</td>
         <td>${d.date}<br>${d.time}</td>
         <td>${locationLink}</td>
       </tr>`;
     });
 
     html += '</table>';
-    html += `<p style="text-align:right; font-size:14px;">合計: ${docs.length}名</p>`;
+    html += `<p style="text-align:right; font-size:14px;">合計: ${retireList.length}名</p>`;
 
     listDiv.innerHTML = html;
 
