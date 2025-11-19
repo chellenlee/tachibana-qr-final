@@ -29,7 +29,7 @@
       text-align: center;
     }
     /* 画面エリア */
-    #setup, #reader, #result, #history-view, #stats-view, #report-view { margin: 20px; }
+    #setup, #reader, #result, #history-view, #stats-view, #report-view, #retire-list-view { margin: 20px; }
     
     #setup input, #setup select {
       text-align: left;
@@ -49,7 +49,7 @@
     #message { font-size: 22px; font-weight: bold; color: green; margin: 15px; }
 
     /* ボタンのデザイン */
-    .save-button, .start-button, .history-button, .stats-button, .report-button {
+    .save-button, .start-button, .history-button, .stats-button, .report-button, .retire-button, .retire-list-button {
       color: white;
       border: none;
       padding: 10px 20px;
@@ -67,14 +67,22 @@
     .history-button, .stats-button, .report-button {
       background: linear-gradient(#4a90e2, #003366);
     }
+    /* リタイヤ登録ボタン（赤系） */
+    .retire-button {
+      background: linear-gradient(#d32f2f, #8e0000); 
+    }
+    /* ▼▼▼ リタイヤ一覧ボタン（オレンジ〜赤系）新規追加 ▼▼▼ */
+    .retire-list-button {
+      background: linear-gradient(#ef5350, #b71c1c);
+    }
 
-    .save-button:active, .start-button:active, .history-button:active, .stats-button:active, .report-button:active {
+    .save-button:active, .start-button:active, .history-button:active, .stats-button:active, .report-button:active, .retire-button:active, .retire-list-button:active {
       box-shadow: 0 2px #444444;
       transform: translateY(3px);
     }
 
     /* テーブル共通スタイル */
-    .history-table, .stats-table, .report-table {
+    .history-table, .stats-table, .report-table, .retire-table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 10px;
@@ -83,13 +91,14 @@
     }
     .history-table th, .history-table td, 
     .stats-table th, .stats-table td,
-    .report-table th, .report-table td {
+    .report-table th, .report-table td,
+    .retire-table th, .retire-table td {
       border: 1px solid #ccc;
       padding: 4px;
       text-align: center;
       line-height: 1.2;
     }
-    .history-table th, .stats-table th, .report-table th {
+    .history-table th, .stats-table th, .report-table th, .retire-table th {
       background-color: #eee;
       white-space: nowrap;
       font-size: 12px;
@@ -97,6 +106,8 @@
     /* 各テーブルのヘッダー色分け */
     .stats-table th { background-color: #d0e0f0; }
     .report-table th { background-color: #ffe0b2; }
+    /* ▼▼▼ リタイヤ一覧テーブルのヘッダー（薄い赤）新規追加 ▼▼▼ */
+    .retire-table th { background-color: #ffcdd2; }
 
     #popup-overlay {
       position: fixed;
@@ -119,47 +130,30 @@
     #popup h2 { margin-top: 0; font-size: 24px; }
     #popup p { margin: 5px 0; font-size: 20px; }
     #popup button { padding: 10px 20px; margin: 10px; font-size: 20px; }
-    /* ▼▼▼ リタイヤ速報バナーのスタイル (新規追加) ▼▼▼ */
+    /* リタイヤ速報バナー */
     #retire-banner {
       position: fixed;
-      top: -100px; /* 初期状態は画面外 */
+      top: -100px; 
       left: 0;
       width: 100%;
-      background-color: #d32f2f; /* 赤色 */
+      background-color: #d32f2f; 
       color: white;
       padding: 15px;
       text-align: center;
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      z-index: 10000; /* 最前面 */
-      transition: top 0.5s ease-in-out; /* スライド表示アニメーション */
+      z-index: 10000; 
+      transition: top 0.5s ease-in-out;
       box-sizing: border-box;
     }
     #retire-banner h3 {
       margin: 0;
       font-size: 24px;
       font-weight: bold;
-      color: #fff; /* 黄色い文字で強調 */
+      color: #fff;
     }
     #retire-banner p {
       margin: 5px 0 0;
       font-size: 18px;
-    }
-    /* ▼▼▼ リタイヤ登録ボタンのデザイン (新規追加) ▼▼▼ */
-    .retire-button {
-      background: linear-gradient(#d32f2f, #8e0000); /* 赤色グラデーション */
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      font-size: 20px;
-      border-radius: 8px;
-      box-shadow: 0 5px #444444;
-      cursor: pointer;
-      display: inline-block;
-      margin-top: 15px;
-    }
-    .retire-button:active {
-      box-shadow: 0 2px #444444;
-      transform: translateY(3px);
     }
   </style>
 </head>
@@ -187,6 +181,7 @@
   <button class="report-button" onclick="showReport()">リアルタイム速報</button>
   <br>
   <button class="retire-button" onclick="startRetireScan()">リタイヤ登録</button>
+  <button class="retire-list-button" onclick="showRetireList()">リタイヤ一覧</button>
 </div>
   
 <div id="history-view" style="display:none;">
@@ -216,6 +211,12 @@
   <button class="save-button" onclick="closeReport()">戻る</button>
 </div>
 
+<div id="retire-list-view" style="display:none;">
+  <h3>リタイヤ一覧</h3>
+  <div id="retire-list-content">データ読込中...</div>
+  <br>
+  <button class="save-button" onclick="closeRetireList()">戻る</button>
+</div>
 <div id="reader" style="display:none;">
   <h3 id="message">読み取り中...</h3>
   <video id="video" playsinline></video>
@@ -336,11 +337,7 @@ function startApp() {
   startScanner();
 }
 
-  /**
- * ▼▼▼ リタイヤ登録（ID:99）専用のスキャン開始関数 (新規追加) ▼▼▼
- */
 function startRetireScan() {
-  // 1. 担当者名のチェック（これがないと保存できないため）
   staff = document.getElementById('staffName').value.trim();
   if (!staff) {
     showCustomPopup({
@@ -352,20 +349,15 @@ function startRetireScan() {
   }
   localStorage.setItem('staffName', staff);
 
-  // 2. 強制的に地点IDを99に設定
   selectedLocationId = '99';
   
-  // 3. 地点名を設定（マスターにあればそれを使用、なければ固定文字）
-  // ※locations配列は初期化時にロード済み
   const retireLoc = locations.find(loc => String(loc.id) === '99');
   selectedLocationName = retireLoc ? retireLoc.name : "リタイヤ";
 
-  // 4. 画面切り替え（プルダウンの値は変更せずに維持されます）
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = '';
   document.getElementById('result').style.display = '';
 
-  // 5. スキャナー起動
   startScanner();
 }
 
@@ -436,7 +428,6 @@ function closeHistory() {
 }
 
 async function showStats() {
-  // 画面遷移
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('result').style.display = 'none';
@@ -446,7 +437,6 @@ async function showStats() {
   listDiv.innerHTML = '全データを集計中...';
 
   try {
-    // 全データを取得
     const snapshot = await firestore.collection('scans').get();
     
     const counts = {};
@@ -454,7 +444,6 @@ async function showStats() {
 
     snapshot.forEach(doc => {
       const d = doc.data();
-      // IDは数値の場合と文字列の場合があるため文字列に統一
       const lid = String(d.id); 
       const lname = d.name || "";
 
@@ -469,7 +458,6 @@ async function showStats() {
     let html = '<table class="stats-table">';
     html += '<tr><th>地点</th><th>通過</th><th>未通過</th><th>リタイヤ</th></tr>';
 
-    // スタート地点(ID:2)の通過数を参加総数とする
     const startLocationId = "2"; 
     let totalRunners = counts[startLocationId] || 0;
 
@@ -481,7 +469,6 @@ async function showStats() {
       const lid = String(loc.id);
       const passed = counts[lid] || 0;
       
-      // 未通過 = 参加総数 - 現在地通過数 - リタイヤ総数
       let unpassed = totalRunners - passed - totalRetire;
       if (unpassed < 0) unpassed = 0;
 
@@ -509,11 +496,7 @@ function closeStats() {
   document.getElementById('setup').style.display = '';
 }
 
-/**
- * ▼▼▼ 経過速報機能 (リタイヤ除外・スタートID=2 実測タイム版) ▼▼▼
- */
 async function showReport() {
-  // 画面遷移
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('result').style.display = 'none';
@@ -538,10 +521,8 @@ async function showReport() {
       locationIndexMap[String(loc.id)] = index;
     });
 
-    // スタート地点ID設定
     const startLocationId = "2";
     
-    // ランナーごとの最新データを集計
     const runnerMap = new Map();
 
     snapshot.forEach(doc => {
@@ -579,7 +560,6 @@ async function showReport() {
       }
     });
 
-    // マップから配列に変換し、リタイヤ者を除外
     allScanDataForReport = Array.from(runnerMap.values())
       .map(entry => {
         return {
@@ -588,16 +568,12 @@ async function showReport() {
           _locationIndex: entry._locationIndex
         };
       })
-      // ▼▼▼ 追加フィルタ：最新地点がリタイヤの場合はリストから除外 ▼▼▼
       .filter(d => {
         const isRetireId = String(d.id) === '99';
         const isRetireName = d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'));
-        // IDが99でなく、かつ名前にリタイヤを含まないデータのみ残す
         return !isRetireId && !isRetireName;
       });
-      // ▲▲▲ 追加フィルタここまで ▲▲▲
 
-    // 部門リスト作成
     const divisions = new Set(allScanDataForReport.map(d => d.division));
     const sortedDivisions = Array.from(divisions).sort();
     
@@ -620,15 +596,11 @@ async function showReport() {
 function calculateElapsedTime(currentDateObj, startScanDateObj) {
   if (!currentDateObj || !startScanDateObj) return "--:--";
 
-  // 1. スタート時間を30分単位に丸める (四捨五入)
-  // 30分 = 30 * 60 * 1000 ミリ秒
   const MS_PER_30_MIN = 30 * 60 * 1000;
   
-  // getTime()でミリ秒にし、30分単位で割って四捨五入し、また掛け戻す
   const roundedStartMs = Math.round(startScanDateObj.getTime() / MS_PER_30_MIN) * MS_PER_30_MIN;
   const roundedStartDate = new Date(roundedStartMs);
 
-  // 2. 経過時間を計算
   const diffMs = currentDateObj - roundedStartDate;
   
   if (diffMs < 0) return "Start前"; 
@@ -636,16 +608,12 @@ function calculateElapsedTime(currentDateObj, startScanDateObj) {
   const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
   const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
 
-  // ゼロ埋め
   const hStr = String(diffHrs).padStart(2, '0');
   const mStr = String(diffMins).padStart(2, '0');
 
   return `${hStr}:${mStr}`;
 }
 
-/**
- * ▼▼▼ 4. プルダウン変更時の表示更新（順位表示追加版） ▼▼▼
- */
 function updateReportView() {
   const select = document.getElementById('report-division-select');
   const selectedDiv = select.value;
@@ -656,7 +624,6 @@ function updateReportView() {
     return;
   }
 
-  // allScanDataForReport が未定義の場合のエラー回避
   if (typeof allScanDataForReport === 'undefined') {
     console.error("データが読み込まれていません");
     return;
@@ -664,7 +631,6 @@ function updateReportView() {
 
   let filtered = allScanDataForReport.filter(d => d.division === selectedDiv);
 
-  // ソート: 1. 地点ID順(降順=先に行っている順) 2. 経過時間(昇順=速い順)
   filtered.sort((a, b) => {
     if (b._locationIndex !== a._locationIndex) {
       return b._locationIndex - a._locationIndex; 
@@ -674,23 +640,18 @@ function updateReportView() {
     return tA - tB; 
   });
 
-  // テーブル生成
   let html = '<table class="report-table">';
-  // ▼ ヘッダーに「順位」を追加
   html += '<tr><th>順位</th><th>No.</th><th>氏名</th><th>地点</th><th>経過</th></tr>';
 
-  // ▼ index引数を利用して順位を表示
   filtered.forEach((d, index) => {
     let elapsedTime = "--:--";
     
-    // 現在地点のタイムスタンプ
     const currentObj = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
     
-    // スタート地点のスキャン時刻 (_realStartTime) がある場合のみ計算
     if (currentObj && d._realStartTime) {
       elapsedTime = calculateElapsedTime(currentObj, d._realStartTime);
     } else if (!d._realStartTime) {
-        elapsedTime = "Start未"; // スタート未通過
+        elapsedTime = "Start未"; 
     }
 
     html += `<tr>
@@ -710,11 +671,76 @@ function closeReport() {
   document.getElementById('report-view').style.display = 'none';
   document.getElementById('setup').style.display = '';
 }
-// --- ▲▲▲ 経過速報機能ここまで ▲▲▲ ---
 
 /**
- * ▼▼▼ 位置情報を取得するヘルパー関数 (新規追加) ▼▼▼
+ * ▼▼▼ リタイヤ一覧表示機能 (新規追加) ▼▼▼
  */
+async function showRetireList() {
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('retire-list-view').style.display = 'block';
+
+  const listDiv = document.getElementById('retire-list-content');
+  listDiv.innerHTML = 'リタイヤ情報を取得中...';
+
+  try {
+    // IDが '99' (リタイヤ) のドキュメントを取得
+    const snapshot = await firestore.collection('scans')
+                                    .where('id', '==', '99')
+                                    .get();
+
+    if (snapshot.empty) {
+      listDiv.innerHTML = '<p>リタイヤ登録されたデータはありません。</p>';
+      return;
+    }
+
+    let docs = snapshot.docs.map(doc => doc.data());
+    
+    // 日付の新しい順にソート
+    docs.sort((a, b) => {
+      const tA = a.scanTimestamp ? a.scanTimestamp.toMillis() : 0;
+      const tB = b.scanTimestamp ? b.scanTimestamp.toMillis() : 0;
+      return tB - tA; 
+    });
+
+    let html = '<table class="retire-table">';
+    html += '<tr><th>部門</th><th>No.</th><th>氏名</th><th>日時</th><th>位置</th></tr>';
+
+    docs.forEach(d => {
+      // 位置情報リンクの作成
+      let locationLink = "ー";
+      if (d.latitude && d.longitude) {
+        // Google Mapsへのリンク
+        const mapUrl = `https://www.google.com/maps?q=${d.latitude},${d.longitude}`;
+        locationLink = `<a href="${mapUrl}" target="_blank" style="text-decoration:underline; color:blue; cursor:pointer;">📍確認</a>`;
+      }
+
+      html += `<tr>
+        <td>${d.division}</td>
+        <td>${d.bibNumber}</td>
+        <td style="text-align:left;">${d.runnerName}</td>
+        <td>${d.date}<br>${d.time}</td>
+        <td>${locationLink}</td>
+      </tr>`;
+    });
+
+    html += '</table>';
+    html += `<p style="text-align:right; font-size:14px;">合計: ${docs.length}名</p>`;
+
+    listDiv.innerHTML = html;
+
+  } catch (error) {
+    console.error("リタイヤ一覧取得エラー:", error);
+    listDiv.innerHTML = '<p style="color:red;">データの取得に失敗しました。</p>';
+  }
+}
+
+function closeRetireList() {
+  document.getElementById('retire-list-view').style.display = 'none';
+  document.getElementById('setup').style.display = '';
+}
+// ▲▲▲ リタイヤ一覧機能ここまで ▲▲▲
+
+
 function getLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
@@ -732,20 +758,17 @@ function getLocation() {
       },
       (error) => {
         console.warn("位置情報の取得に失敗:", error.message);
-        resolve(null); // エラーでもnullを返して処理を続行させる
+        resolve(null); 
       },
       {
-        enableHighAccuracy: true, // 高精度モード
-        timeout: 5000,            // 5秒でタイムアウト
-        maximumAge: 0             // キャッシュを使わない
+        enableHighAccuracy: true, 
+        timeout: 5000,            
+        maximumAge: 0             
       }
     );
   });
 }
   
-/**
- * QRコードスキャナーを開始する (ID99のみ位置情報取得版)
- */
 function startScanner() {
   const video = document.getElementById('video');
   if (!codeReader) {
@@ -753,10 +776,9 @@ function startScanner() {
   }
   document.getElementById('message').textContent = '読み取り中...';
 
-  // コールバック関数
   codeReader.decodeFromVideoDevice(undefined, video, async (result, err) => { 
     if (result) {
-      codeReader.reset(); // カメラ停止
+      codeReader.reset(); 
       
       const text = result.text.trim();
       const parts = text.split('/');
@@ -766,12 +788,10 @@ function startScanner() {
         
         let locData = null;
 
-        // ▼▼▼ 変更箇所：地点IDが '99' の時のみ位置情報を取得 ▼▼▼
         if (selectedLocationId == '99') {
           document.getElementById('message').textContent = '位置情報取得中...';
           locData = await getLocation();
         }
-        // ▲▲▲ 変更箇所ここまで ▲▲▲
 
         document.getElementById('message').textContent = '読み取り成功';
 
@@ -785,7 +805,6 @@ function startScanner() {
           runnerName,
           gender,
           startTime,
-          // 取得していれば値を、していなければ null をセット
           latitude: locData ? locData.lat : null,
           longitude: locData ? locData.lng : null,
           
@@ -854,12 +873,7 @@ function endApp() {
   document.getElementById('result').style.display = 'none';
 }
 
-/**
- * 読み取りデータをFirebase Firestoreにアップロードする (修正版)
- * ※リタイヤ速報をトランザクション外に移動し、保存エラーを回避
- */
 async function uploadToFirebase(data) {
-  // 1. データベース接続チェック
   if (!firestore) {
     console.error("Firestore is not initialized.");
     document.getElementById('message').textContent = 'DB未接続エラー'; 
@@ -870,24 +884,17 @@ async function uploadToFirebase(data) {
   const docRef = firestore.collection("scans").doc(docId);
 
   try {
-    // ▼▼▼ 2. 計測データの保存（最優先処理・トランザクション） ▼▼▼
-    // ここは絶対に成功させる必要がある部分です
     await firestore.runTransaction(async (transaction) => {
       const doc = await transaction.get(docRef);
       if (doc.exists) {
-        // 既にデータがあればエラーを投げて保存しない（重複防止）
         throw new Error("already-exists");
       }
-      // 新規なら保存
       transaction.set(docRef, data);
     });
     
-    // ▼▼▼ 3. 保存成功後の処理 ▼▼▼
     console.log("Transaction successfully committed (初回):", docId);
     document.getElementById('message').textContent = `${data.bibNumber} 保存完了`;
 
-    // ▼▼▼ 4. リタイヤ速報の送信（トランザクションの外で実行） ▼▼▼
-    // これにより、もし速報送信が失敗しても、上の「保存完了」は取り消されません
     if (String(data.id) === '99' || data.name.includes("【リタイヤ】") || data.name.includes("【リタイヤ】")) {
       firestore.collection('broadcast').doc('latest_retire').set({
         bibNumber: data.bibNumber,
@@ -897,13 +904,11 @@ async function uploadToFirebase(data) {
         staff: data.staff,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       }).catch((err) => {
-        // 速報だけ失敗した場合はログに残すだけで、ユーザーにはエラーを見せない
         console.warn("速報の送信に失敗しました（データ保存は成功）:", err);
       });
     }
 
   } catch (error) {
-    // ▼▼▼ 5. エラーハンドリング（保存失敗時） ▼▼▼
     if (error.message === "already-exists") {
       console.warn("Transaction failed (重複スキャン):", docId);
       document.getElementById('message').textContent = `${data.bibNumber} は読み取り済み`;
@@ -939,31 +944,21 @@ function showCustomPopup({ title = "", message = "", buttons = [], callback = nu
   overlay.style.display = 'flex';
 }
 
-// ▼▼▼ リタイヤ速報受信用のロジック (新規追加) ▼▼▼
+let lastRetireAlertTime = new Date().getTime(); 
 
-let lastRetireAlertTime = new Date().getTime(); // アプリ起動時刻を記録
-
-/**
- * リタイヤ速報の監視を開始する
- */
 function startRetireListener() {
-  // 'broadcast' コレクションの 'latest_retire' ドキュメントを監視
   firestore.collection('broadcast').doc('latest_retire')
     .onSnapshot((doc) => {
       if (!doc.exists) return;
       
       const d = doc.data();
-      // 書き込み直後でタイムスタンプがまだ生成されていない場合は無視
       if (!d.timestamp) return; 
 
-      // 発生時刻（ミリ秒）
       const alertTime = d.timestamp.toMillis();
       const now = new Date().getTime();
 
-      // アプリ起動後に発生した、かつ 10分以内 の新しい情報のみ通知する
-      // (過去のリタイヤ情報が起動時に毎回出るのを防ぐため)
       if (alertTime > lastRetireAlertTime && (now - alertTime) < 10 * 60 * 1000) {
-        lastRetireAlertTime = alertTime; // 最新通知時刻を更新
+        lastRetireAlertTime = alertTime; 
         showRetireAlert(d);
       }
     }, (error) => {
@@ -971,33 +966,25 @@ function startRetireListener() {
     });
 }
 
-/**
- * 速報バナーを表示する
- */
 function showRetireAlert(data) {
   const banner = document.getElementById('retire-banner');
   const info = document.getElementById('retire-info');
   
-  // 内容をセット
   info.innerHTML = `
     No.${data.bibNumber} <strong>${data.runnerName}</strong> さん<br>
     場所: ${data.locationName}
   `;
   
-  // バイブレーション (長い振動で警告)
   if (navigator.vibrate) {
     navigator.vibrate([500, 200, 500]); 
   }
 
-  // バナーをスライドダウン表示
   banner.style.top = "0";
 
-  // 7秒後に自動で隠す
   setTimeout(() => {
     banner.style.top = "-200px";
   }, 7000);
 }
-// ▼▼▼ 3. 初期化処理 (修正版) ▼▼▼
 
 try {
   firebase.initializeApp(firebaseConfig);
@@ -1009,7 +996,7 @@ try {
 
   setTimeout(() => {
     initializeAppLogic();
-    startRetireListener(); // ★ここに追加！★
+    startRetireListener(); 
   }, 300);
 
 } catch (e) {
