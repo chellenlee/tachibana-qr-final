@@ -427,6 +427,7 @@ function closeHistory() {
   document.getElementById('setup').style.display = '';
 }
 
+// ▼▼▼ 通過状況集計の修正版（showStats関数のみ差し替え） ▼▼▼
 async function showStats() {
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
@@ -434,54 +435,116 @@ async function showStats() {
   document.getElementById('stats-view').style.display = 'block';
 
   const listDiv = document.getElementById('stats-list');
-  listDiv.innerHTML = '全データを集計中...';
+  listDiv.innerHTML = '全データを解析・集計中...';
 
   try {
     const snapshot = await firestore.collection('scans').get();
     
-    const counts = {};
-    let totalRetire = 0;
+    // 1. 地点IDと配列インデックスの対応マップを作成
+    // これにより「次の地点」がどこかを判定できるようにします
+    const locIndexMap = {};
+    locations.forEach((loc, index) => {
+      locIndexMap[String(loc.id)] = index;
+    });
+
+    // 2. ランナーごとの状況を整理
+    // runners[ゼッケン] = { maxIndex: その人が到達した最大の地点インデックス, isRetired: リタイヤしたか }
+    const runners = {};
 
     snapshot.forEach(doc => {
       const d = doc.data();
-      const lid = String(d.id); 
-      const lname = d.name || "";
+      const bib = d.bibNumber;
+      const lid = String(d.id);
+      
+      // リタイヤ判定（IDが99 または 地点名にリタイアが含まれる）
+      const isRetireScan = (lid === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'))));
 
-      if (lname.includes("リタイヤ") || lname.includes("リタイア")) {
-        totalRetire++;
+      if (!runners[bib]) {
+        runners[bib] = { maxIndex: -1, isRetired: false };
+      }
+
+      if (isRetireScan) {
+        runners[bib].isRetired = true;
       } else {
-        if (!counts[lid]) counts[lid] = 0;
-        counts[lid]++;
+        // 通常地点の場合、より先の地点に進んでいれば更新
+        const idx = locIndexMap[lid];
+        if (idx !== undefined && idx > runners[bib].maxIndex) {
+          runners[bib].maxIndex = idx;
+        }
       }
     });
 
+    // 3. 地点ごとの集計用配列を初期化
+    // statsData[index] = { passed: 通過数, retiredHere: この地点の手前でリタイヤした数 }
+    const statsData = locations.map(() => ({ passed: 0, retiredHere: 0 }));
+
+    // 4. 集計実行
+    Object.values(runners).forEach(r => {
+      // (A) 通過数のカウント
+      // その人が到達した地点(maxIndex)までの全ての地点に「通過」として+1
+      // ※例: 第3エイドまで行けば、スタート・第1・第2・第3すべて通過とみなす
+      if (r.maxIndex >= 0) {
+        for (let i = 0; i <= r.maxIndex; i++) {
+          statsData[i].passed++;
+        }
+      }
+
+      // (B) リタイヤ数のカウント（ご要望の機能）
+      // リタイヤ者は、「最後に通過した地点の 次の地点」にリタイヤ数として計上
+      if (r.isRetired) {
+        const nextLocIndex = r.maxIndex + 1;
+        // 次の地点が存在する場合のみ計上
+        if (nextLocIndex < locations.length) {
+          statsData[nextLocIndex].retiredHere++;
+        }
+      }
+    });
+
+    // 5. テーブル生成
     let html = '<table class="stats-table">';
     html += '<tr><th>地点</th><th>通過</th><th>未通過</th><th>リタイヤ</th></tr>';
 
-    const startLocationId = "2"; 
-    let totalRunners = counts[startLocationId] || 0;
+    // スタート地点（ID:2）の通過者数を基準（母数）とするため取得
+    const startLocId = "2";
+    const startIndex = locIndexMap[startLocId];
+    // スタート地点の通過数（もしスタート地点が見つからなければ0）
+    const startRunnerCount = (startIndex !== undefined) ? statsData[startIndex].passed : 0;
 
-    locations.forEach((loc) => {
-      if (loc.name.includes("リタイヤ") || loc.name.includes("リタイア")) {
+    // 累積リタイヤ数（未通過の計算に使用）
+    let cumulativeRetired = 0;
+
+    locations.forEach((loc, index) => {
+      // リタイヤ地点マスタ自体は表示から除外
+      if (String(loc.id) === '99' || loc.name.includes("リタイヤ") || loc.name.includes("リタイア")) {
         return;
       }
 
-      const lid = String(loc.id);
-      const passed = counts[lid] || 0;
+      const data = statsData[index];
       
-      let unpassed = totalRunners - passed - totalRetire;
-      if (unpassed < 0) unpassed = 0;
+      // この地点までの累積リタイヤ数を更新
+      cumulativeRetired += data.retiredHere;
+
+      // 未通過数の計算
+      // 式： スタート総数 - 通過済数 - ここまでの累計リタイヤ数
+      // ※スタート地点より前の地点（受付など）の場合は計算がマイナスになるのを防ぐ処理を入れる
+      let unpassed = 0;
+      
+      // スタート地点以降のみ「未通過」を計算する
+      if (index >= startIndex) {
+        unpassed = startRunnerCount - data.passed - cumulativeRetired;
+        if (unpassed < 0) unpassed = 0;
+      }
 
       html += `<tr>
         <td style="text-align:left;">${loc.name}</td>
-        <td style="font-weight:bold; color:blue;">${passed}</td>
-        <td style="color:red;">${unpassed}</td>
-        <td>${totalRetire}</td>
+        <td style="font-weight:bold; color:blue;">${data.passed}</td>
+        <td style="color:red;">${(index >= startIndex) ? unpassed : '-'}</td>
+        <td>${data.retiredHere > 0 ? '+' + data.retiredHere : 0}</td>
       </tr>`;
     });
 
     html += '</table>';
-    html += `<p style="text-align:right; font-size:14px; color:#666;">※未通過数 = スタート数(ID:2)基準</p>`;
+    html += `<p style="text-align:right; font-size:14px; color:#666;">※未通過 = スタート数 - (通過 + 累計リタイヤ)</p>`;
     
     listDiv.innerHTML = html;
 
@@ -490,6 +553,7 @@ async function showStats() {
     listDiv.innerHTML = '<p style="color:red;">データの集計に失敗しました。</p>';
   }
 }
+// ▲▲▲ 修正ここまで ▲▲▲
 
 function closeStats() {
   document.getElementById('stats-view').style.display = 'none';
