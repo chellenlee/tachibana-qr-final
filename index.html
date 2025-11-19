@@ -562,8 +562,19 @@ async function showReport() {
 
     allScanDataForReport = Array.from(runnerMap.values())
       .map(entry => {
+        // ▼▼▼ データを正規化（全角→半角、空白削除）修正箇所 ▼▼▼
+        let rawDiv = entry.latestData.division || "";
+        // 文字列化し、全角英数字を半角に変換
+        let cleanDiv = String(rawDiv).replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
+            return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+        });
+        // 空白を削除し、大文字に統一
+        cleanDiv = cleanDiv.trim().toUpperCase();
+        // ▲▲▲ 修正ここまで ▲▲▲
+
         return {
           ...entry.latestData,
+          division: cleanDiv, // 正規化した部門名をセット
           _realStartTime: entry.startScanTime,
           _locationIndex: entry._locationIndex
         };
