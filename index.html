@@ -1115,24 +1115,31 @@ function startRetireListener() {
     });
 }
 
+// ▼▼▼ 修正版 2: 表示ロジック（バナーをやめて、確実な CustomPopup を使用） ▼▼▼
 function showRetireAlert(data) {
-  const banner = document.getElementById('retire-banner');
-  const info = document.getElementById('retire-info');
-  
-  info.innerHTML = `
-    No.${data.bibNumber} <strong>${data.runnerName}</strong> さん<br>
-    場所: ${data.locationName}
-  `;
-  
+  // バイブレーション（対応端末のみ）
   if (navigator.vibrate) {
-    navigator.vibrate([500, 200, 500]); 
+    navigator.vibrate([500, 200, 500, 200, 500]); 
   }
 
-  banner.style.top = "0";
-
-  setTimeout(() => {
-    banner.style.top = "-200px";
-  }, 7000);
+  // ★ここをご要望通り showCustomPopup に変更しました
+  // 赤文字で強調して表示します
+  showCustomPopup({
+    title: "⚠ リタイヤ速報",
+    message: `
+      <div style="text-align:center; margin: 10px 0;">
+        <span style="font-size:32px; color:red; font-weight:bold;">No.${data.bibNumber}</span><br>
+        <span style="font-size:24px; font-weight:bold;">${data.runnerName} さん</span>
+        <hr style="margin:10px 0;">
+        <div style="font-size:18px; color:#333;">
+          場所: <strong>${data.locationName}</strong><br>
+          担当: ${data.staff}<br>
+          <span style="font-size:14px; color:#888;">${data.time}</span>
+        </div>
+      </div>
+    `,
+    buttons: [{ text: "確認しました", value: true }]
+  });
 }
 
 try {
