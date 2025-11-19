@@ -1073,7 +1073,10 @@ function showCustomPopup({ title = "", message = "", buttons = [], callback = nu
   overlay.style.display = 'flex';
 }
 
-let lastRetireAlertTime = new Date().getTime(); 
+// ▼▼▼ 修正版 startRetireListener ▼▼▼
+let lastProcessedRetireTime = 0; // 最後に処理したリタイヤ情報の時刻（重複防止用）
+// アプリ起動時の時刻（ここから5分前までのデータは許容するバッファを持たせる）
+const appStartTime = new Date().getTime() - (5 * 60 * 1000); 
 
 function startRetireListener() {
   firestore.collection('broadcast').doc('latest_retire')
@@ -1081,13 +1084,30 @@ function startRetireListener() {
       if (!doc.exists) return;
       
       const d = doc.data();
-      if (!d.timestamp) return; 
+      
+      // 1. 時刻の判定
+      let alertTime = 0;
+      
+      if (!d.timestamp) {
+        // 【重要】timestampがnullの場合＝「自分の端末で今書き込んだデータ」
+        // これを表示しないと、登録者は「動いていない」と錯覚するため、現在時刻として処理する
+        alertTime = new Date().getTime();
+      } else {
+        alertTime = d.timestamp.toMillis();
+      }
 
-      const alertTime = d.timestamp.toMillis();
       const now = new Date().getTime();
 
-      if (alertTime > lastRetireAlertTime && (now - alertTime) < 10 * 60 * 1000) {
-        lastRetireAlertTime = alertTime; 
+      // 2. 表示条件の緩和
+      // 条件A: アプリ起動時より新しい（または許容範囲内）データであること
+      // 条件B: 10分以内のデータであること（あまりに古いものは表示しない）
+      // 条件C: まだこのデータを表示していないこと（重複防止）
+      
+      const isRecent = alertTime > appStartTime;
+      const isWithin10Mins = (now - alertTime) < 10 * 60 * 1000; // 自分の時計が進んでいても、差分が大きすぎなければOKとする
+      
+      if (isRecent && isWithin10Mins && alertTime > lastProcessedRetireTime) {
+        lastProcessedRetireTime = alertTime; // 処理済み時刻を更新
         showRetireAlert(d);
       }
     }, (error) => {
