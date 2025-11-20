@@ -1020,15 +1020,39 @@ try {
   firebase.initializeApp(firebaseConfig);
   firestore = firebase.firestore();
 
-  // ★重要：オフライン永続化設定
-  firestore.enablePersistence()
+  // ▼▼▼ 修正箇所：複数タブ対策とエラー表示 ▼▼▼
+  
+  // { synchronizeTabs: true } を追加することで、複数タブでの同時利用を試みます
+  firestore.enablePersistence({ synchronizeTabs: true })
     .catch((err) => {
+      // それでもエラーになった場合（古いブラウザなど）の対策
       if (err.code == 'failed-precondition') {
-          console.log('複数タブで開かれているため永続化できません');
+        console.error("複数タブエラー:", err);
+        
+        // 画面に大きく警告を出す
+        showCustomPopup({
+          title: "⚠ 警告",
+          message: `
+            <div style="text-align:left; font-size:18px;">
+              <strong>アプリが複数のタブで開かれています。</strong><br><br>
+              データの保存に失敗する恐れがあります。<br>
+              不要なタブを全て閉じてから、このページを<strong>再読み込み</strong>してください。
+            </div>
+          `,
+          buttons: [{ text: "再読み込み", value: true }],
+          callback: () => {
+            window.location.reload();
+          }
+        });
+        
+        document.getElementById('message').textContent = '⚠ 複数タブで起動中';
+        document.getElementById('message').style.color = 'red';
+
       } else if (err.code == 'unimplemented') {
-          console.log('ブラウザが対応していません');
+        console.log('ブラウザがオフライン保存に対応していません');
       }
     });
+  // ▲▲▲ 修正ここまで ▲▲▲
 
   setTimeout(() => {
     initializeAppLogic();
