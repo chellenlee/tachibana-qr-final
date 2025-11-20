@@ -881,7 +881,6 @@ function endApp() {
   document.getElementById('result').style.display = 'none';
 }
 
-// ▼▼▼ ★重要：オフライン対応のために全面的に修正した関数 ▼▼▼
 async function uploadToFirebase(data) {
   if (!firestore) {
     console.error("Firestore is not initialized.");
@@ -889,33 +888,38 @@ async function uploadToFirebase(data) {
     return;
   }
 
-  // ドキュメントIDを「地点_ゼッケン」で一意に決める
   const docId = `${data.id}_${data.bibNumber}`;
   const docRef = firestore.collection("scans").doc(docId);
 
   try {
-    // 1. すでにデータが存在するかチェック（オフライン時はキャッシュからチェック）
-    // ※Transactionを使わないため、ここで存在確認を行います
-    const docSnap = await docRef.get();
+    let exists = false;
 
-    if (docSnap.exists) {
-      // すでに登録済みの場合
-      console.warn("Already exists (Offline/Online check):", docId);
+    // ▼▼▼ 修正: 読み取り(get)の失敗を許容する ▼▼▼
+    try {
+      const docSnap = await docRef.get();
+      exists = docSnap.exists;
+    } catch (e) {
+      // ここに来るのは「オフラインかつ永続化が無効」な場合など
+      console.warn("重複チェックスキップ（オフラインまたはエラー）:", e);
+      // エラーが出ても止めずに、exists = false（新規扱い）として次に進む
+      exists = false;
+    }
+    // ▲▲▲ 修正ここまで ▲▲▲
+
+    if (exists) {
+      console.warn("Already exists:", docId);
       document.getElementById('message').textContent = `${data.bibNumber} は読み取り済み`;
       return; 
     }
 
-    // 2. 保存処理（.setを使用）
-    // オフライン時：ローカルに保存され、成功とみなされる
-    // オンライン復帰時：自動でサーバーへ同期される
+    // 保存処理
     await docRef.set(data, { merge: true });
     
     console.log("Data saved (Offline/Online):", docId);
     document.getElementById('message').textContent = `${data.bibNumber} 保存完了`;
 
-    // 3. リタイヤ速報の処理（ここもオフライン対応）
+    // リタイヤ速報
     if (String(data.id) === '99' || data.name.includes("リタイヤ") || data.name.includes("リタイア")) {
-      // 通常の .set を使用することで、圏外ならキューに入り、圏内に入った瞬間に通知が飛びます
       firestore.collection('broadcast').doc('latest_retire').set({
         bibNumber: data.bibNumber,
         runnerName: data.runnerName,
@@ -924,7 +928,6 @@ async function uploadToFirebase(data) {
         staff: data.staff,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       }).catch((err) => {
-        // 圏外でここがエラーになることは通常ありませんが、念のためログ出力
         console.warn("速報送信保留:", err);
       });
     }
@@ -934,6 +937,7 @@ async function uploadToFirebase(data) {
     document.getElementById('message').textContent = `保存失敗: ${error.message}`;
   }
 }
+
 
 function showCustomPopup({ title = "", message = "", buttons = [], callback = null }) {
   const overlay = document.getElementById('popup-overlay');
