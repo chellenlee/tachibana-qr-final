@@ -131,6 +131,8 @@
       display: none; /* 今回は使用しないため非表示 */
     }
   </style>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
 </head>
 
 <body>
@@ -154,6 +156,8 @@
   <br>
   <button class="retire-button" onclick="startRetireScan()">リタイヤ登録</button>
   <button class="retire-list-button" onclick="showRetireList()">リタイヤリスト</button>
+  <button class="report-button" onclick="exportToExcel()">EXCEL出力</button>
+
 </div>
   
 <div id="history-view" style="display:none;">
@@ -1064,6 +1068,176 @@ try {
   alert("データベースの初期化に失敗しました。");
   initializeAppLogic();
 }
+// ▼▼▼ EXCEL出力機能 ▼▼▼
+async function exportToExcel() {
+  if (!confirm("現在のデータでEXCELファイルを作成しますか？")) return;
+
+  const btn = event.target;
+  const originalText = btn.textContent;
+  btn.textContent = "作成中...";
+  btn.disabled = true;
+
+  try {
+    // 1. データの取得（showReportのロジックを流用して全データを取得・整理）
+    const snapshot = await firestore.collection('scans').get();
+    if (snapshot.empty) {
+      alert("データがありません。");
+      throw new Error("No data");
+    }
+
+    // 地点IDマップ作成
+    const locationIndexMap = {};
+    locations.forEach((loc, index) => {
+      locationIndexMap[String(loc.id)] = index;
+    });
+    const startLocationId = "2"; // スタート地点のID
+    const runnerMap = new Map();
+
+    // データの整理（各ランナーのスタート時間と最新地点を特定）
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      const bib = d.bibNumber;
+      const lid = String(d.id);
+      
+      // リタイヤデータは除外（必要に応じて変更してください）
+      if (lid === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア')))) return;
+
+      const currentIndex = locationIndexMap[lid] !== undefined ? locationIndexMap[lid] : -1;
+      const scanDate = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
+
+      if (!runnerMap.has(bib)) {
+        runnerMap.set(bib, {
+          latestData: d,
+          startScanTime: (lid === startLocationId) ? scanDate : null,
+          _locationIndex: currentIndex
+        });
+      } else {
+        const entry = runnerMap.get(bib);
+        // スタート時間の保持
+        if (lid === startLocationId) {
+          entry.startScanTime = scanDate;
+        }
+        // 最新地点の更新判定
+        if (currentIndex > entry._locationIndex) {
+          entry.latestData = d;
+          entry._locationIndex = currentIndex;
+        } else if (currentIndex === entry._locationIndex) {
+           const currentTs = scanDate ? scanDate.getTime() : 0;
+           const existingTs = entry.latestData.scanTimestamp ? entry.latestData.scanTimestamp.toMillis() : 0;
+           if (currentTs > existingTs) {
+             entry.latestData = d;
+           }
+        }
+      }
+    });
+
+    // 2. データの整形と経過時間計算
+    let allRunners = Array.from(runnerMap.values()).map(entry => {
+      let rawDiv = entry.latestData.division || "";
+      // 全角英数を半角に変換して部門名を正規化
+      let cleanDiv = String(rawDiv).replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
+          return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+      });
+      cleanDiv = cleanDiv.trim().toUpperCase();
+
+      // 経過時間の計算（ミリ秒）
+      let elapsedMs = 0;
+      let elapsedStr = "--:--";
+      
+      if (entry.latestData.scanTimestamp && entry.startScanTime) {
+         // スタート時間は30分単位で丸める等のロジックがあればここも合わせる
+         const MS_PER_30_MIN = 30 * 60 * 1000;
+         const roundedStartMs = Math.round(entry.startScanTime.getTime() / MS_PER_30_MIN) * MS_PER_30_MIN;
+         const roundedStartDate = new Date(roundedStartMs);
+         
+         elapsedMs = entry.latestData.scanTimestamp.toDate() - roundedStartDate;
+         if (elapsedMs > 0) {
+           const diffHrs = Math.floor(elapsedMs / (1000 * 60 * 60));
+           const diffMins = Math.floor((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
+           elapsedStr = `${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}`;
+         } else {
+           elapsedMs = 999999999; // スタート前などは順位を下げるため大きな値に
+           elapsedStr = "Start前";
+         }
+      } else {
+         elapsedMs = 999999999; 
+         elapsedStr = "Start未";
+      }
+
+      return {
+        division: cleanDiv,
+        bib: entry.latestData.bibNumber,
+        name: entry.latestData.runnerName,
+        gender: entry.latestData.gender || "", // 性別
+        startTime: entry.startScanTime ? entry.startScanTime.toLocaleTimeString('ja-JP') : "-",
+        finishTime: entry.latestData.time || "-", // 最新通過時間
+        elapsedStr: elapsedStr,
+        elapsedMs: elapsedMs
+      };
+    });
+
+    // 3. Excelワークブックの作成
+    const workbook = XLSX.utils.book_new();
+    const divisions = [...new Set(allRunners.map(d => d.division))].sort();
+
+    divisions.forEach(divName => {
+      // 部門でフィルタリング
+      const divRunners = allRunners.filter(r => r.division === divName);
+      
+      // 男女別に分けてソートし、順位付け
+      const males = divRunners.filter(r => r.gender.includes('男'));
+      const females = divRunners.filter(r => r.gender.includes('女'));
+      const others = divRunners.filter(r => !r.gender.includes('男') && !r.gender.includes('女'));
+
+      // タイム順にソートする関数
+      const timeSort = (a, b) => a.elapsedMs - b.elapsedMs;
+
+      males.sort(timeSort);
+      females.sort(timeSort);
+      others.sort(timeSort);
+
+      // 順位付与済みリストを作成
+      const rows = [];
+      
+      // ヘッダー行
+      rows.push(["順位", "ゼッケン", "氏名", "性別", "スタート時間", "ゴール時間", "経過時間"]);
+
+      const addRows = (list, label) => {
+        list.forEach((r, idx) => {
+          rows.push([
+            idx + 1, // 順位
+            r.bib,
+            r.name,
+            r.gender,
+            r.startTime,
+            r.finishTime,
+            r.elapsedStr
+          ]);
+        });
+      };
+
+      // 男子、女子、その他の順でリストに追加
+      if(males.length > 0) addRows(males);
+      if(females.length > 0) addRows(females);
+      if(others.length > 0) addRows(others);
+
+      // シート作成
+      const worksheet = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(workbook, worksheet, divName || "未分類");
+    });
+
+    // 4. ファイル書き出し
+    XLSX.writeFile(workbook, "橘湾岸QR2025_結果.xlsx");
+
+  } catch (error) {
+    console.error("Excel出力エラー:", error);
+    if(error.message !== "No data") alert("出力に失敗しました。");
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
 </script>
 </body>
 </html>
