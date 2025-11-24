@@ -1068,7 +1068,7 @@ try {
   alert("データベースの初期化に失敗しました。");
   initializeAppLogic();
 }
-// ▼▼▼ EXCEL出力機能 ▼▼▼
+// ▼▼▼ EXCEL出力機能（修正版） ▼▼▼
 async function exportToExcel() {
   if (!confirm("現在のデータでEXCELファイルを作成しますか？")) return;
 
@@ -1078,62 +1078,80 @@ async function exportToExcel() {
   btn.disabled = true;
 
   try {
-    // 1. データの取得（showReportのロジックを流用して全データを取得・整理）
+    // 1. データの取得
     const snapshot = await firestore.collection('scans').get();
     if (snapshot.empty) {
       alert("データがありません。");
       throw new Error("No data");
     }
 
-    // 地点IDマップ作成
-    const locationIndexMap = {};
-    locations.forEach((loc, index) => {
-      locationIndexMap[String(loc.id)] = index;
+    // 地点IDマップ作成 & ゴール地点IDの特定
+    // ※「ゴール」という文字が含まれる地点をゴールとみなします
+    let goalLocationId = null;
+    locations.forEach((loc) => {
+      if (loc.name.includes("ゴール")) {
+        goalLocationId = String(loc.id);
+      }
     });
-    const startLocationId = "2"; // スタート地点のID
+
+    if (!goalLocationId) {
+      alert("地点マスター内に「ゴール」が見つかりません。地点名を確認してください。");
+      throw new Error("Goal location not found");
+    }
+
+    const startLocationId = "2"; // スタート地点のID（運用に合わせて変更可）
     const runnerMap = new Map();
 
-    // データの整理（各ランナーのスタート時間と最新地点を特定）
+    // データの整理
     snapshot.forEach(doc => {
       const d = doc.data();
       const bib = d.bibNumber;
       const lid = String(d.id);
       
-      // リタイヤデータは除外（必要に応じて変更してください）
+      // リタイヤデータは除外
       if (lid === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア')))) return;
 
-      const currentIndex = locationIndexMap[lid] !== undefined ? locationIndexMap[lid] : -1;
       const scanDate = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
 
       if (!runnerMap.has(bib)) {
         runnerMap.set(bib, {
-          latestData: d,
+          latestData: d, // 基本情報（名前・性別など）用
           startScanTime: (lid === startLocationId) ? scanDate : null,
-          _locationIndex: currentIndex
+          goalScanTime: (lid === goalLocationId) ? scanDate : null,
+          goalData: (lid === goalLocationId) ? d : null
         });
       } else {
         const entry = runnerMap.get(bib);
+        
         // スタート時間の保持
         if (lid === startLocationId) {
           entry.startScanTime = scanDate;
         }
-        // 最新地点の更新判定
-        if (currentIndex > entry._locationIndex) {
+        
+        // ゴール判定
+        if (lid === goalLocationId) {
+          // もし複数回ゴールスキャンがある場合は、最新の日時を採用（または最初のものにするなら条件変更）
+          if (!entry.goalScanTime || (scanDate && scanDate > entry.goalScanTime)) {
+            entry.goalScanTime = scanDate;
+            entry.goalData = d;
+          }
+        }
+
+        // 最新データの更新（名前や部門などの情報源として）
+        const currentTs = scanDate ? scanDate.getTime() : 0;
+        const existingTs = entry.latestData.scanTimestamp ? entry.latestData.scanTimestamp.toMillis() : 0;
+        if (currentTs > existingTs) {
           entry.latestData = d;
-          entry._locationIndex = currentIndex;
-        } else if (currentIndex === entry._locationIndex) {
-           const currentTs = scanDate ? scanDate.getTime() : 0;
-           const existingTs = entry.latestData.scanTimestamp ? entry.latestData.scanTimestamp.toMillis() : 0;
-           if (currentTs > existingTs) {
-             entry.latestData = d;
-           }
         }
       }
     });
 
     // 2. データの整形と経過時間計算
     let allRunners = Array.from(runnerMap.values()).map(entry => {
-      let rawDiv = entry.latestData.division || "";
+      // 情報源はゴールしていればゴールデータ、なければ最新データを使う
+      const baseData = entry.goalData || entry.latestData;
+      
+      let rawDiv = baseData.division || "";
       // 全角英数を半角に変換して部門名を正規化
       let cleanDiv = String(rawDiv).replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
           return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
@@ -1141,36 +1159,34 @@ async function exportToExcel() {
       cleanDiv = cleanDiv.trim().toUpperCase();
 
       // 経過時間の計算（ミリ秒）
-      let elapsedMs = 0;
-      let elapsedStr = "--:--";
-      
-      if (entry.latestData.scanTimestamp && entry.startScanTime) {
-         // スタート時間は30分単位で丸める等のロジックがあればここも合わせる
+      let elapsedMs = Infinity; // ソートで最後にするため無限大を設定
+      let elapsedStr = "DNS";   // デフォルトはDNS
+      let finishTimeStr = "-";
+
+      // ★条件：ゴールデータがあり、かつスタートデータがある場合のみ計算★
+      if (entry.goalData && entry.startScanTime) {
+         // スタート時間は30分単位で丸める
          const MS_PER_30_MIN = 30 * 60 * 1000;
          const roundedStartMs = Math.round(entry.startScanTime.getTime() / MS_PER_30_MIN) * MS_PER_30_MIN;
          const roundedStartDate = new Date(roundedStartMs);
          
-         elapsedMs = entry.latestData.scanTimestamp.toDate() - roundedStartDate;
-         if (elapsedMs > 0) {
-           const diffHrs = Math.floor(elapsedMs / (1000 * 60 * 60));
-           const diffMins = Math.floor((elapsedMs % (1000 * 60 * 60)) / (1000 * 60));
+         const diff = entry.goalScanTime - roundedStartDate;
+         if (diff > 0) {
+           elapsedMs = diff;
+           const diffHrs = Math.floor(diff / (1000 * 60 * 60));
+           const diffMins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
            elapsedStr = `${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}`;
-         } else {
-           elapsedMs = 999999999; // スタート前などは順位を下げるため大きな値に
-           elapsedStr = "Start前";
+           finishTimeStr = entry.goalData.time || "-";
          }
-      } else {
-         elapsedMs = 999999999; 
-         elapsedStr = "Start未";
       }
 
       return {
         division: cleanDiv,
-        bib: entry.latestData.bibNumber,
-        name: entry.latestData.runnerName,
-        gender: entry.latestData.gender || "", // 性別
+        bib: baseData.bibNumber,
+        name: baseData.runnerName,
+        gender: baseData.gender || "", // 性別
         startTime: entry.startScanTime ? entry.startScanTime.toLocaleTimeString('ja-JP') : "-",
-        finishTime: entry.latestData.time || "-", // 最新通過時間
+        finishTime: finishTimeStr,
         elapsedStr: elapsedStr,
         elapsedMs: elapsedMs
       };
@@ -1189,7 +1205,7 @@ async function exportToExcel() {
       const females = divRunners.filter(r => r.gender.includes('女'));
       const others = divRunners.filter(r => !r.gender.includes('男') && !r.gender.includes('女'));
 
-      // タイム順にソートする関数
+      // タイム順にソートする関数 (DNSは elapsedMs が Infinity なので最後になる)
       const timeSort = (a, b) => a.elapsedMs - b.elapsedMs;
 
       males.sort(timeSort);
@@ -1202,10 +1218,12 @@ async function exportToExcel() {
       // ヘッダー行
       rows.push(["順位", "ゼッケン", "氏名", "性別", "スタート時間", "ゴール時間", "経過時間"]);
 
-      const addRows = (list, label) => {
+      const addRows = (list) => {
         list.forEach((r, idx) => {
+          // ゴールしていない(DNS)の場合は順位をハイフンにする
+          const rank = (r.elapsedStr === "DNS") ? "-" : (idx + 1);
           rows.push([
-            idx + 1, // 順位
+            rank, 
             r.bib,
             r.name,
             r.gender,
@@ -1231,12 +1249,13 @@ async function exportToExcel() {
 
   } catch (error) {
     console.error("Excel出力エラー:", error);
-    if(error.message !== "No data") alert("出力に失敗しました。");
+    if(error.message !== "No data") alert("出力に失敗しました: " + error.message);
   } finally {
     btn.textContent = originalText;
     btn.disabled = false;
   }
 }
+
 
 </script>
 </body>
