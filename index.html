@@ -596,14 +596,26 @@ async function showStats() {
       if (r.maxIdx >= 0) {
         for (let i = 0; i <= r.maxIdx; i++) {
           if (statsMap[i]) {
-            if (r.div !== 'other' && statsMap[i][r.div] !== undefined) statsMap[i][r.div]++;
-            statsMap[i].total++;
+            const loc = locations[i];
+            // ★修正1：その部門が通過する地点の時だけカウント（通過扱い）にする
+            if (!loc.divisions || loc.divisions.includes(r.div)) {
+              if (r.div !== 'other' && statsMap[i][r.div] !== undefined) statsMap[i][r.div]++;
+              statsMap[i].total++;
+            }
           }
         }
       }
       if (r.isRetire) {
-        let nextLoc = r.maxIdx + 1;
-        if (statsMap[nextLoc]) {
+        // ★修正2：リタイヤした場合、その部門が「次に通過するはずだった有効な地点」を探してリタイヤ数を足す
+        let nextLoc = -1;
+        for (let i = r.maxIdx + 1; i < locations.length; i++) {
+          const l = locations[i];
+          if (String(l.id) !== '99' && (!l.divisions || l.divisions.includes(r.div))) {
+            nextLoc = i;
+            break;
+          }
+        }
+        if (nextLoc !== -1 && statsMap[nextLoc]) {
           statsMap[nextLoc].retire++;
           if (r.div !== 'other' && statsMap[nextLoc].retireDiv[r.div] !== undefined) {
             statsMap[nextLoc].retireDiv[r.div]++;
@@ -614,16 +626,12 @@ async function showStats() {
 
     let html = '<div style="overflow-x: auto;"><table class="stats-table">';
     html += '<tr>';
-    // ▼ 地点：折り返しを許可し、幅をフレキシブルに
     html += '<th rowspan="2" style="padding: 4px; vertical-align: middle;">地点</th>';
     html += '<th colspan="4" style="border-bottom: 1px solid #ccc; padding: 4px; text-align: center;">未通過数</th>';
-    // ▼ 通過・未通過：3桁幅を確保し、折り返し禁止
     html += '<th rowspan="2" style="padding: 4px 1px; vertical-align: middle; white-space: nowrap; min-width: 2.5em;">通過</th>';
     html += '<th rowspan="2" style="padding: 4px 1px; vertical-align: middle; white-space: nowrap; min-width: 2.5em;">未通過</th>';
-    // ▼ リタイヤ：2行にして横幅削減、3桁幅確保
     html += '<th rowspan="2" style="padding: 4px 1px; vertical-align: middle; line-height: 1.2; min-width: 2.5em;">リタ<br>イヤ</th>';
     html += '</tr><tr>';
-    // ▼ ELMS：3桁幅を確保
     TARGET_DIVISIONS.forEach(div => { html += `<th style="padding: 4px 1px; text-align: center; min-width: 2.2em;">${div}</th>`; });
     html += '</tr>';
 
@@ -649,20 +657,28 @@ async function showStats() {
 
       if (index >= startLocIdx) {
         TARGET_DIVISIONS.forEach(div => {
-          let unp = startCount[div] - statsMap[index][div] - cumulativeRetire[div];
-          unpassedDiv[div] = unp < 0 ? 0 : unp;
+          // ★修正3：その地点に該当部門が通過するかチェック
+          const isValid = (!loc.divisions || loc.divisions.includes(div));
+          if (isValid) {
+            let unp = startCount[div] - statsMap[index][div] - cumulativeRetire[div];
+            unpassedDiv[div] = unp < 0 ? 0 : unp;
+            // 通過する部門の未通過数だけを合計に足す
+            unpassedTotal += unpassedDiv[div]; 
+          } else {
+            // 通過しない部門は計算から除外し、0にする
+            unpassedDiv[div] = 0; 
+          }
         });
-        
-        unpassedTotal = startCount.total - passedTotal - cumulativeRetire.total;
-        if (unpassedTotal < 0) unpassedTotal = 0;
       }
 
-      // ▼ 地点名：折り返しを許可（white-space: nowrapを削除）
       html += `<tr><td style="text-align: left; padding: 4px; line-height: 1.3;">${loc.name}</td>`;
       
-      // ▼ 数字列：すべてに white-space: nowrap を付与し、3桁になっても途中で改行されないよう防御
       TARGET_DIVISIONS.forEach(div => { 
-        if (index === startLocIdx) {
+        const isValid = (!loc.divisions || loc.divisions.includes(div));
+        if (!isValid) {
+          // ★修正4：通過しない部門の「0」は、エラーっぽく見えないよう少しグレーにして表示
+          html += `<td style="color:#aaa; font-weight:normal; white-space:nowrap;">0</td>`; 
+        } else if (index === startLocIdx) {
           html += `<td style="color:blue; font-weight:bold; white-space:nowrap;">${statsMap[index][div]}</td>`; 
         } else {
           html += `<td style="color:red; font-weight:bold; white-space:nowrap;">${unpassedDiv[div]}</td>`; 
