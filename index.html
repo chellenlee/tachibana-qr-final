@@ -348,7 +348,7 @@ async function showRunnerDetail(bib) {
     let effStart = getEffectiveStartTime(docs);
     let startLabelClass = effStart.isKari ? "kari-text" : "";
 
-    document.getElementById('detail-runner-name').textContent = `${runnerName} さん`;
+    document.getElementById('detail-runner-name').textContent = `${runnerName} `;
     document.getElementById('detail-runner-info').innerHTML = `部門: ${division} / No: ${bib} / Start: <span class="${startLabelClass}">${effStart.label}</span>`;
 
     let isDNF = docs.some(d => String(d.id) === '99');
@@ -954,7 +954,7 @@ function startRetireListener() {
       if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]); 
       showCustomPopup({
         title: "⚠ リタイヤ速報",
-        message: `<div style="text-align:center; margin: 10px 0;"><span style="font-size:32px; color:red; font-weight:bold;">No.${d.bibNumber}</span><br><span style="font-size:24px; font-weight:bold;">${d.runnerName} さん</span><hr style="margin:10px 0;"><div style="font-size:18px; color:#333;">場所: <strong>${d.locationName}</strong><br>担当: ${d.staff}<br><span style="font-size:14px; color:#888;">${d.time}</span></div></div>`,
+        message: `<div style="text-align:center; margin: 10px 0;"><span style="font-size:32px; color:red; font-weight:bold;">No.${d.bibNumber}</span><br><span style="font-size:24px; font-weight:bold;">${d.runnerName} </span><hr style="margin:10px 0;"><div style="font-size:18px; color:#333;">場所: <strong>${d.locationName}</strong><br>担当: ${d.staff}<br><span style="font-size:14px; color:#888;">${d.time}</span></div></div>`,
         buttons: [{ text: "確認しました", value: true }]
       });
     }
