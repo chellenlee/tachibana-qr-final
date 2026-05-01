@@ -614,13 +614,17 @@ async function showStats() {
 
     let html = '<div style="overflow-x: auto;"><table class="stats-table">';
     html += '<tr>';
-    html += '<th rowspan="2" style="white-space: nowrap; padding: 4px 8px; vertical-align: middle;">地点</th>';
+    // ▼ 地点：折り返しを許可し、幅をフレキシブルに
+    html += '<th rowspan="2" style="padding: 4px; vertical-align: middle;">地点</th>';
     html += '<th colspan="4" style="border-bottom: 1px solid #ccc; padding: 4px; text-align: center;">未通過数</th>';
-    html += '<th rowspan="2" style="white-space: nowrap; padding: 4px; vertical-align: middle;">通過</th>';
-    html += '<th rowspan="2" style="white-space: nowrap; padding: 4px; vertical-align: middle;">未通過計</th>';
-    html += '<th rowspan="2" style="white-space: nowrap; padding: 4px; vertical-align: middle;">リタイヤ</th>';
+    // ▼ 通過・未通過：3桁幅を確保し、折り返し禁止
+    html += '<th rowspan="2" style="padding: 4px 1px; vertical-align: middle; white-space: nowrap; min-width: 2.5em;">通過</th>';
+    html += '<th rowspan="2" style="padding: 4px 1px; vertical-align: middle; white-space: nowrap; min-width: 2.5em;">未通過</th>';
+    // ▼ リタイヤ：2行にして横幅削減、3桁幅確保
+    html += '<th rowspan="2" style="padding: 4px 1px; vertical-align: middle; line-height: 1.2; min-width: 2.5em;">リタ<br>イヤ</th>';
     html += '</tr><tr>';
-    TARGET_DIVISIONS.forEach(div => { html += `<th style="padding: 4px; text-align: center;">${div}</th>`; });
+    // ▼ ELMS：3桁幅を確保
+    TARGET_DIVISIONS.forEach(div => { html += `<th style="padding: 4px 1px; text-align: center; min-width: 2.2em;">${div}</th>`; });
     html += '</tr>';
 
     const startLocIdx = locIndexMap["2"];
@@ -653,23 +657,21 @@ async function showStats() {
         if (unpassedTotal < 0) unpassedTotal = 0;
       }
 
-      html += `<tr><td style="white-space: nowrap; text-align: left; padding: 4px 8px;">${loc.name}</td>`;
+      // ▼ 地点名：折り返しを許可（white-space: nowrapを削除）
+      html += `<tr><td style="text-align: left; padding: 4px; line-height: 1.3;">${loc.name}</td>`;
       
-      // ★ スタート地点だけは「通過数（青）」、それ以外は「未通過数（赤）」
+      // ▼ 数字列：すべてに white-space: nowrap を付与し、3桁になっても途中で改行されないよう防御
       TARGET_DIVISIONS.forEach(div => { 
         if (index === startLocIdx) {
-          html += `<td style="color:blue; font-weight:bold;">${statsMap[index][div]}</td>`; 
+          html += `<td style="color:blue; font-weight:bold; white-space:nowrap;">${statsMap[index][div]}</td>`; 
         } else {
-          html += `<td style="color:red; font-weight:bold;">${unpassedDiv[div]}</td>`; 
+          html += `<td style="color:red; font-weight:bold; white-space:nowrap;">${unpassedDiv[div]}</td>`; 
         }
       });
       
-      // ★ 通過：青字
-      html += `<td style="color:blue; font-weight:bold;">${passedTotal}</td>`;
-      // ★ 未通過計：赤字
-      html += `<td style="color:red; font-weight:bold;">${(index >= startLocIdx) ? unpassedTotal : '-'}</td>`;
-      // ★ リタイヤ：黒字
-      html += `<td style="color:black; font-weight:bold;">${statsMap[index].retire > 0 ? '+' + statsMap[index].retire : 0}</td></tr>`;
+      html += `<td style="color:blue; font-weight:bold; white-space:nowrap;">${passedTotal}</td>`;
+      html += `<td style="color:red; font-weight:bold; white-space:nowrap;">${(index >= startLocIdx) ? unpassedTotal : '-'}</td>`;
+      html += `<td style="color:black; font-weight:bold; white-space:nowrap;">${statsMap[index].retire > 0 ? '+' + statsMap[index].retire : 0}</td></tr>`;
     });
 
     html += '</table></div>';
