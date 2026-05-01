@@ -289,7 +289,7 @@ function getEffectiveStartTime(docs) {
     
     return { time: kariDate, isKari: true, label: `${anyDoc.qrStartTime}(仮)` };
   }
-  return { time: null, isKari: false, label: "Start未" };
+  return { time: null, isKari: false, label: "Start無" };
 }
 
 function calculatePace(timeMs, distKm) {
@@ -301,7 +301,7 @@ function calculatePace(timeMs, distKm) {
 }
 
 function formatElapsed(diffMs) {
-  if (diffMs < 0) return "Start前"; 
+  if (diffMs < 0) return "Start無"; 
   const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
   const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
   return `${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}`;
@@ -512,7 +512,7 @@ function updateReportView() {
       if (currentObj && d._effStart.time) {
         elapsedTime = formatElapsed(currentObj.getTime() - d._effStart.time.getTime());
       } else if (!d._effStart.time) {
-        elapsedTime = "Start未"; 
+        elapsedTime = "Start無"; 
       }
       passageLabel = currentObj ? `${currentObj.getDate()}日<br>${String(currentObj.getHours()).padStart(2, '0')}:${String(currentObj.getMinutes()).padStart(2, '0')}` : (d.time || "");
     }
@@ -634,9 +634,13 @@ async function showStats() {
 
       html += `<tr><td style="white-space: nowrap; text-align: left; padding: 4px 8px;">${loc.name}</td>`;
       
-      // ★ 未通過数（ELMS各部門）：赤字
+      // ★ スタート地点だけは「通過数（青）」、それ以外は「未通過数（赤）」
       TARGET_DIVISIONS.forEach(div => { 
-        html += `<td style="color:red; font-weight:bold;">${unpassedDiv[div]}</td>`; 
+        if (index === startLocIdx) {
+          html += `<td style="color:blue; font-weight:bold;">${statsMap[index][div]}</td>`; 
+        } else {
+          html += `<td style="color:red; font-weight:bold;">${unpassedDiv[div]}</td>`; 
+        }
       });
       
       // ★ 通過：青字
@@ -648,7 +652,7 @@ async function showStats() {
     });
 
     html += '</table></div>';
-    html += '<p style="text-align:right; font-size:12px; color:#666;">※未通過数 ＝ スタート数 － (通過数 ＋ 累計リタイヤ)</p>';
+    html += '<p style="text-align:right; font-size:12px; color:#666;">※スタート地点は出走数(青字)、以降は未通過数(赤字)です。<br>未通過数 ＝ スタート数 － (通過数 ＋ 累計リタイヤ)</p>';
     listDiv.innerHTML = html;
   } catch (error) {
     console.error("集計エラー:", error);
@@ -734,7 +738,7 @@ async function showRetireList() {
     const retireList = [];
     Object.keys(runners).forEach(bib => {
       const r = runners[bib];
-      if (r.retireData) retireList.push({ ...r.retireData, _lastLocationName: r.lastNormalData ? r.lastNormalData.name : 'Start前' });
+      if (r.retireData) retireList.push({ ...r.retireData, _lastLocationName: r.lastNormalData ? r.lastNormalData.name : 'Start無' });
     });
 
     if (retireList.length === 0) { listDiv.innerHTML = '<p>リタイヤ登録はありません。</p>'; return; }
