@@ -266,6 +266,7 @@ function endApp() {
 function getEffectiveStartTime(docs) {
   let startDoc = docs.find(d => String(d.id) === "2");
   
+  // ▼ 実績スタートあり：ユーザー指定の「1時間丸め処理」を適用
   if (startDoc && startDoc.scanTimestamp) {
     let sDate = startDoc.scanTimestamp.toDate();
     let startH = sDate.getHours();
@@ -276,19 +277,35 @@ function getEffectiveStartTime(docs) {
     return { time: roundedStart, isKari: false, label: `${String(startH).padStart(2, '0')}:00` };
   }
 
+  // ▼ 実績なし、QR仮時間あり：最初に読み取られた地点の日付 ＋ QRの時刻
   let anyDoc = docs[0];
   if (anyDoc && anyDoc.qrStartTime) {
-    let [qH, qM] = anyDoc.qrStartTime.split(':').map(Number);
-    // 修正：JavaScriptの月は0始まりのため、4を指定すると5月になります
-    let kariDate = new Date(2026, 4, 4, qH, qM, 0, 0);
+    // 最も古い読み取り記録を探す（これが「最初に読み取られた地点」）
+    let earliestDoc = docs.reduce((prev, curr) => {
+      let pt = prev.scanTimestamp ? prev.scanTimestamp.toMillis() : Infinity;
+      let ct = curr.scanTimestamp ? curr.scanTimestamp.toMillis() : Infinity;
+      return pt < ct ? prev : curr;
+    }, docs[0]);
     
-    // M部門 または S部門 の場合は、日付を 5日 に変更
-    if (anyDoc.division === 'M' || anyDoc.division === 'S') {
-      kariDate.setDate(5);
+    if (earliestDoc && earliestDoc.scanTimestamp) {
+      let baseDate = earliestDoc.scanTimestamp.toDate();
+      let [qH, qM] = anyDoc.qrStartTime.split(':').map(Number);
+      
+      // 読み取られた「日付」に、ゼッケンの「時刻」を付与
+      let kariDate = new Date(baseDate);
+      kariDate.setHours(qH, qM, 0, 0);
+      
+      // ※深夜またぎ対策：QR時刻が「22:00」で、最初の読み取りが「翌朝02:00」だった場合、
+      // そのままくっつけると「翌日の22:00」になって未来の時間になるため、1日前に戻す
+      if (kariDate > baseDate) { 
+        kariDate.setDate(kariDate.getDate() - 1); 
+      }
+      
+      return { time: kariDate, isKari: true, label: `${anyDoc.qrStartTime}(仮)` };
     }
-    
-    return { time: kariDate, isKari: true, label: `${anyDoc.qrStartTime}(仮)` };
   }
+  
+  // ▼ どちらも無い場合
   return { time: null, isKari: false, label: "Start無" };
 }
 
