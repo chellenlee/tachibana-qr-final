@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>橘湾岸ＱＲ2025秋</title>
+  <title>橘湾岸ＱＲ2026春</title>
   
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -26,15 +26,15 @@
   <style>
     body { font-family: sans-serif; margin: 0; padding: 0; background: #f0f0f0; font-size: 18px; }
     #title-banner {
-      background-color: #003366; /* 紺色背景 */
-      color: white;              /* 白抜き文字 */
+      background-color: #003366;
+      color: white;
       padding: 20px;
       font-size: 18px;
       font-weight: bold;
       text-align: center;
     }
-    /* 画面エリア */
-    #setup, #reader, #result, #history-view, #stats-view, #report-view, #retire-list-view { margin: 20px; }
+    
+    #setup, #reader, #result, #history-view, #stats-view, #report-view, #retire-list-view, #runner-detail-view { margin: 20px; }
     
     #setup input, #setup select {
       text-align: left;
@@ -53,7 +53,6 @@
     input, select, button { padding: 12px; font-size: 20px; margin: 8px; }
     #message { font-size: 22px; font-weight: bold; color: green; margin: 15px; }
 
-    /* ボタンのデザイン */
     .save-button, .start-button, .history-button, .stats-button, .report-button, .retire-button, .retire-list-button {
       color: white;
       border: none;
@@ -78,7 +77,6 @@
       transform: translateY(3px);
     }
 
-    /* テーブル共通スタイル */
     .history-table, .stats-table, .report-table, .retire-table {
       width: 100%;
       border-collapse: collapse;
@@ -126,16 +124,13 @@
     #popup p { margin: 5px 0; font-size: 20px; }
     #popup button { padding: 10px 20px; margin: 10px; font-size: 20px; }
     
-    /* リタイヤ速報バナー（※今回はCustomPopupを利用するため、このCSSは予備として残しています） */
-    #retire-banner {
-      display: none; /* 今回は使用しないため非表示 */
-    }
+    #retire-banner { display: none; }
   </style>
 </head>
 
 <body>
 
-<div id="title-banner">橘湾岸ＱＲ2025秋</div>
+<div id="title-banner">橘湾岸ＱＲ2026春</div>
 
 <div id="setup">
   <h2 style="text-align:left; margin-left: 2em;">担当者入力・地点選択</h2>
@@ -183,6 +178,15 @@
   <button class="save-button" onclick="closeReport()">戻る</button>
 </div>
 
+<!-- 新設：ランナー詳細画面 -->
+<div id="runner-detail-view" style="display:none;">
+  <h3 id="detail-runner-name" style="margin-bottom: 5px;">ランナー詳細</h3>
+  <div id="detail-runner-info" style="font-size: 16px; font-weight: bold; margin-bottom: 15px;"></div>
+  <div id="detail-list">データ読込中...</div>
+  <br>
+  <button class="save-button" onclick="closeRunnerDetail()">戻る</button>
+</div>
+
 <div id="retire-list-view" style="display:none;">
   <h3>リタイヤ一覧</h3>
   <div id="retire-list-content">データ読込中...</div>
@@ -214,7 +218,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
 <script>
-// ▼▼▼ 1. グローバル変数とFirebase設定 ▼▼▼
 let firestore;
 let staff = '';
 let selectedLocationId = '';
@@ -222,6 +225,9 @@ let selectedLocationName = '';
 let codeReader = null;
 let locations = []; 
 let allScanDataForReport = [];
+
+// 今回の固定部門
+const TARGET_DIVISIONS = ['E', 'L', 'M', 'S'];
 
 const firebaseConfig = {
   apiKey: "AIzaSyD_Aic5iQ7OYGO9qTv0patspCKbwsuYcs8",
@@ -232,8 +238,6 @@ const firebaseConfig = {
   appId: "1:963128842192:web:5ee0eb05d3df5e7c63cbd5"
 };
 
-// ▼▼▼ 2. 関数定義 ▼▼▼
-
 async function initializeAppLogic() {
   const savedStaff = localStorage.getItem('staffName');
   const savedLocationId = localStorage.getItem('locationId');
@@ -241,13 +245,11 @@ async function initializeAppLogic() {
   if (savedStaff) document.getElementById('staffName').value = savedStaff;
 
   const locationSelect = document.getElementById('location');
-  
   locationSelect.innerHTML = '<option value="">地点マスター読込中...</option>';
   locationSelect.disabled = true;
 
   try {
-    // オフラインでもキャッシュがあればそこから読まれます
-    const snapshot = await firestore.collection("locations_master")
+    const snapshot = await firestore.collection("locations_master_spring")
                                     .orderBy("id", "asc")
                                     .get();
 
@@ -272,7 +274,6 @@ async function initializeAppLogic() {
     if (savedLocationId) {
       locationSelect.value = savedLocationId;
     }
-
   } catch (err) {
     console.error("地点マスターの読み込みに失敗しました:", err);
     locationSelect.innerHTML = '<option value="">読込エラー</option>';
@@ -297,7 +298,6 @@ function startApp() {
   localStorage.setItem('staffName', staff);
   selectedLocationId = locationId;
   selectedLocationName = locations.find(loc => loc.id == locationId).name;
-
   localStorage.setItem('locationId', selectedLocationId);
   localStorage.setItem('locationName', selectedLocationName); 
 
@@ -352,7 +352,7 @@ async function showHistory() {
   listDiv.innerHTML = 'データを取得中...';
 
   try {
-    const snapshot = await firestore.collection('scans')
+    const snapshot = await firestore.collection('scans_spring_2026')
       .where('staff', '==', staffInput)
       .get();
 
@@ -397,88 +397,106 @@ function closeHistory() {
 
 async function showStats() {
   document.getElementById('setup').style.display = 'none';
-  document.getElementById('reader').style.display = 'none';
-  document.getElementById('result').style.display = 'none';
   document.getElementById('stats-view').style.display = 'block';
 
   const listDiv = document.getElementById('stats-list');
   listDiv.innerHTML = '全データを解析・集計中...';
 
   try {
-    const snapshot = await firestore.collection('scans').get();
+    const snapshot = await firestore.collection('scans_spring_2026').get();
     
     const locIndexMap = {};
     locations.forEach((loc, index) => {
       locIndexMap[String(loc.id)] = index;
     });
 
-    const passedCounts = new Array(locations.length).fill(0);
-    const retireCounts = new Array(locations.length).fill(0);
+    const statsMap = {};
+    locations.forEach((_, i) => {
+      statsMap[i] = { E: 0, L: 0, M: 0, S: 0, total: 0, retire: 0 };
+    });
+
     const runnerStatus = {};
 
     snapshot.forEach(doc => {
       const d = doc.data();
       const bib = d.bibNumber;
       const lid = String(d.id);
-      const isRetireScan = (lid === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'))));
+      const isRetire = (lid === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'))));
       const locIdx = locIndexMap[lid];
+      
+      let div = d.division;
+      if (!TARGET_DIVISIONS.includes(div)) div = 'other';
 
       if (!runnerStatus[bib]) {
-        runnerStatus[bib] = { maxIndex: -1, isRetired: false };
+        runnerStatus[bib] = { div: div, maxIdx: -1, isRetire: false };
       }
 
-      if (isRetireScan) {
-        runnerStatus[bib].isRetired = true;
+      if (isRetire) {
+        runnerStatus[bib].isRetire = true;
       } else if (locIdx !== undefined) {
-        passedCounts[locIdx]++;
-        if (locIdx > runnerStatus[bib].maxIndex) {
-          runnerStatus[bib].maxIndex = locIdx;
+        if (locIdx > runnerStatus[bib].maxIdx) {
+          runnerStatus[bib].maxIdx = locIdx;
         }
       }
     });
 
+    // ワープ補完を含めた集計処理
     Object.values(runnerStatus).forEach(r => {
-      if (r.isRetired) {
-        const nextLocIndex = r.maxIndex + 1;
-        if (nextLocIndex < locations.length) {
-          retireCounts[nextLocIndex]++;
+      if (r.maxIdx >= 0) {
+        for (let i = 0; i <= r.maxIdx; i++) {
+          if (statsMap[i]) {
+            if (r.div !== 'other' && statsMap[i][r.div] !== undefined) {
+              statsMap[i][r.div]++;
+            }
+            statsMap[i].total++;
+          }
         }
+      }
+      if (r.isRetire) {
+        let nextLoc = r.maxIdx + 1;
+        if (statsMap[nextLoc]) statsMap[nextLoc].retire++;
       }
     });
 
     let html = '<table class="stats-table">';
-    html += '<tr><th>地点</th><th>通過</th><th>未通過</th><th>リタイヤ</th></tr>';
+    html += '<tr><th style="min-width:11em;">地点</th>';
+    TARGET_DIVISIONS.forEach(div => { html += `<th>${div}</th>`; });
+    html += '<th>計</th><th>未</th><th>リ</th></tr>';
 
     const startLocId = "2";
     const startLocIdx = locIndexMap[startLocId];
-    const startRunnerCount = (startLocIdx !== undefined) ? passedCounts[startLocIdx] : 0;
+    const startRunnerCount = (startLocIdx !== undefined) ? statsMap[startLocIdx].total : 0;
     let cumulativeRetire = 0;
 
     locations.forEach((loc, index) => {
-      if (String(loc.id) === '99' || loc.name.includes("リタイヤ") || loc.name.includes("リタイア")) {
-        return;
-      }
+      if (String(loc.id) === '99' || loc.name.includes("リタイヤ") || loc.name.includes("リタイア")) return;
 
-      const passed = passedCounts[index];
-      const retiredHere = retireCounts[index]; 
+      const passedTotal = statsMap[index].total;
+      const retiredHere = statsMap[index].retire;
       cumulativeRetire += retiredHere;
 
       let unpassed = 0;
       if (index >= startLocIdx) {
-        unpassed = startRunnerCount - passed - cumulativeRetire;
+        unpassed = startRunnerCount - passedTotal - cumulativeRetire;
         if (unpassed < 0) unpassed = 0;
       }
 
       html += `<tr>
-        <td style="text-align:left;">${loc.name}</td>
-        <td style="font-weight:bold; color:blue;">${passed}</td>
+        <td style="min-width:11em; max-width:11em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left;">${loc.name}</td>`;
+      
+      TARGET_DIVISIONS.forEach(div => {
+        html += `<td>${statsMap[index][div]}</td>`;
+      });
+        
+      html += `
+        <td style="font-weight:bold; color:blue;">${passedTotal}</td>
         <td style="color:red;">${(index >= startLocIdx) ? unpassed : '-'}</td>
         <td>${retiredHere > 0 ? '+' + retiredHere : 0}</td>
       </tr>`;
     });
 
     html += '</table>';
-    html += `<p style="text-align:right; font-size:14px; color:#666;">※未通過 = スタート数 - (通過 + 累計リタイヤ)</p>`;
+    html += `<p style="text-align:right; font-size:14px; color:#666;">※未通過 = スタート総数 - (通過計 + 累計リタイヤ)</p>`;
     listDiv.innerHTML = html;
 
   } catch (error) {
@@ -494,8 +512,6 @@ function closeStats() {
 
 async function showReport() {
   document.getElementById('setup').style.display = 'none';
-  document.getElementById('reader').style.display = 'none';
-  document.getElementById('result').style.display = 'none';
   document.getElementById('report-view').style.display = 'block';
 
   const listDiv = document.getElementById('report-list');
@@ -505,7 +521,7 @@ async function showReport() {
   select.innerHTML = '<option value="">部門を抽出中...</option>';
 
   try {
-    const snapshot = await firestore.collection('scans').get();
+    const snapshot = await firestore.collection('scans_spring_2026').get();
     if (snapshot.empty) {
       listDiv.innerHTML = '<p>データがありません。</p>';
       select.innerHTML = '<option value="">データなし</option>';
@@ -523,28 +539,37 @@ async function showReport() {
       const d = doc.data();
       const bib = d.bibNumber;
       const lid = String(d.id);
+      const isRetire = (lid === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'))));
       const currentIndex = locationIndexMap[lid] !== undefined ? locationIndexMap[lid] : -1;
       const scanDate = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
 
       if (!runnerMap.has(bib)) {
         runnerMap.set(bib, {
-          latestData: d,
-          startScanTime: (lid === startLocationId) ? scanDate : null,
-          _locationIndex: currentIndex
+          latestNormalData: null,
+          startScanTime: null,
+          retireData: null,
+          _locationIndex: -1
         });
+      }
+      
+      const entry = runnerMap.get(bib);
+
+      if (isRetire) {
+        if (!entry.retireData || (scanDate && entry.retireData.scanTimestamp && scanDate > entry.retireData.scanTimestamp.toDate())) {
+          entry.retireData = d;
+        }
       } else {
-        const entry = runnerMap.get(bib);
         if (lid === startLocationId) {
           entry.startScanTime = scanDate;
         }
         if (currentIndex > entry._locationIndex) {
-          entry.latestData = d;
+          entry.latestNormalData = d;
           entry._locationIndex = currentIndex;
-        } else if (currentIndex === entry._locationIndex) {
+        } else if (currentIndex === entry._locationIndex && entry.latestNormalData) {
            const currentTs = scanDate ? scanDate.getTime() : 0;
-           const existingTs = entry.latestData.scanTimestamp ? entry.latestData.scanTimestamp.toMillis() : 0;
+           const existingTs = entry.latestNormalData.scanTimestamp ? entry.latestNormalData.scanTimestamp.toMillis() : 0;
            if (currentTs > existingTs) {
-             entry.latestData = d;
+             entry.latestNormalData = d;
            }
         }
       }
@@ -552,24 +577,17 @@ async function showReport() {
 
     allScanDataForReport = Array.from(runnerMap.values())
       .map(entry => {
-        let rawDiv = entry.latestData.division || "";
-        let cleanDiv = String(rawDiv).replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
-            return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
-        });
-        cleanDiv = cleanDiv.trim().toUpperCase();
+        let targetData = entry.latestNormalData || entry.retireData;
+        if (!targetData) return null;
 
         return {
-          ...entry.latestData,
-          division: cleanDiv,
+          ...targetData,
           _realStartTime: entry.startScanTime,
-          _locationIndex: entry._locationIndex
+          _locationIndex: entry._locationIndex,
+          _isDNF: !!entry.retireData,
+          _retireData: entry.retireData
         };
-      })
-      .filter(d => {
-        const isRetireId = String(d.id) === '99';
-        const isRetireName = d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'));
-        return !isRetireId && !isRetireName;
-      });
+      }).filter(d => d !== null);
 
     const divisions = new Set(allScanDataForReport.map(d => d.division));
     const sortedDivisions = Array.from(divisions).sort();
@@ -591,11 +609,19 @@ async function showReport() {
 
 function calculateElapsedTime(currentDateObj, startScanDateObj) {
   if (!currentDateObj || !startScanDateObj) return "--:--";
-  const MS_PER_30_MIN = 30 * 60 * 1000;
-  const roundedStartMs = Math.round(startScanDateObj.getTime() / MS_PER_30_MIN) * MS_PER_30_MIN;
-  const roundedStartDate = new Date(roundedStartMs);
-  const diffMs = currentDateObj - roundedStartDate;
+  
+  // 1時間単位の丸め処理 (10分までは切り捨て、11分以降は切り上げ)
+  let startH = startScanDateObj.getHours();
+  let startM = startScanDateObj.getMinutes();
+  if (startM >= 11) {
+    startH += 1;
+  }
+  let roundedStart = new Date(startScanDateObj);
+  roundedStart.setHours(startH, 0, 0, 0);
+
+  const diffMs = currentDateObj.getTime() - roundedStart.getTime();
   if (diffMs < 0) return "Start前"; 
+  
   const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
   const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
   const hStr = String(diffHrs).padStart(2, '0');
@@ -614,7 +640,6 @@ function updateReportView() {
   }
 
   if (typeof allScanDataForReport === 'undefined') {
-    console.error("データが読み込まれていません");
     return;
   }
 
@@ -634,23 +659,37 @@ function updateReportView() {
 
   filtered.forEach((d, index) => {
     let elapsedTime = "--:--";
-    const currentObj = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
-    if (currentObj && d._realStartTime) {
-      elapsedTime = calculateElapsedTime(currentObj, d._realStartTime);
-    } else if (!d._realStartTime) {
+    let passageLabel = "--:--";
+
+    if (d._isDNF) {
+      elapsedTime = "DNF";
+      const retDate = d._retireData.scanTimestamp ? d._retireData.scanTimestamp.toDate() : null;
+      if (retDate) {
+        passageLabel = `${retDate.getDate()}日<br>${String(retDate.getHours()).padStart(2, '0')}:${String(retDate.getMinutes()).padStart(2, '0')}`;
+      } else {
+        passageLabel = d._retireData.time || "リタイヤ";
+      }
+    } else {
+      const currentObj = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
+      if (currentObj && d._realStartTime) {
+        elapsedTime = calculateElapsedTime(currentObj, d._realStartTime);
+      } else if (!d._realStartTime) {
         elapsedTime = "Start未"; 
+      }
+
+      if (currentObj) {
+        passageLabel = `${currentObj.getDate()}日<br>${String(currentObj.getHours()).padStart(2, '0')}:${String(currentObj.getMinutes()).padStart(2, '0')}`; 
+      } else {
+        passageLabel = d.time || "";
+      }
     }
-    let passageLabel = d.time || "";
-    if (currentObj) {
-      const dd = currentObj.getDate();
-      const hh = String(currentObj.getHours()).padStart(2, '0');
-      const mm = String(currentObj.getMinutes()).padStart(2, '0');
-      passageLabel = `${dd}日<br>${hh}:${mm}`; 
-    }
+
     html += `<tr>
       <td style="font-weight:bold;">${index + 1}</td> <td>${d.bibNumber}</td>
-      <td style="text-align:left;">${d.runnerName}</td>
-      <td style="text-align:left;">${d.name}</td>
+      <td style="text-align:left;">
+        <a href="#" onclick="showRunnerDetail('${d.bibNumber}'); return false;" style="color: blue; text-decoration: underline;">${d.runnerName}</a>
+      </td>
+      <td style="text-align:left;">${d._isDNF ? d._retireData.name : d.name}</td>
       <td style="font-size: 14px; line-height: 1.2;">${passageLabel}</td>
       <td style="font-weight:bold;">${elapsedTime}</td>
     </tr>`;
@@ -665,6 +704,90 @@ function closeReport() {
   document.getElementById('setup').style.display = '';
 }
 
+async function showRunnerDetail(bib) {
+  document.getElementById('report-view').style.display = 'none';
+  document.getElementById('runner-detail-view').style.display = 'block';
+  
+  document.getElementById('detail-runner-info').innerHTML = `ゼッケン: ${bib} のデータを取得中...`;
+  document.getElementById('detail-list').innerHTML = '';
+
+  try {
+    const snapshot = await firestore.collection('scans_spring_2026')
+      .where('bibNumber', '==', bib)
+      .get();
+
+    if (snapshot.empty) {
+      document.getElementById('detail-list').innerHTML = '<p>データが見つかりません。</p>';
+      return;
+    }
+
+    let docs = snapshot.docs.map(doc => doc.data());
+    
+    // スタート時刻を取得
+    let startDoc = docs.find(d => String(d.id) === "2");
+    let startScanDateObj = startDoc && startDoc.scanTimestamp ? startDoc.scanTimestamp.toDate() : null;
+
+    const locIndexMap = {};
+    locations.forEach((loc, index) => { locIndexMap[String(loc.id)] = index; });
+
+    // 地点の降順、同地点なら時刻の降順
+    docs.sort((a, b) => {
+      let idxA = locIndexMap[String(a.id)] !== undefined ? locIndexMap[String(a.id)] : 999;
+      let idxB = locIndexMap[String(b.id)] !== undefined ? locIndexMap[String(b.id)] : 999;
+      if (idxB !== idxA) return idxB - idxA; 
+      
+      let tA = a.scanTimestamp ? a.scanTimestamp.toMillis() : 0;
+      let tB = b.scanTimestamp ? b.scanTimestamp.toMillis() : 0;
+      return tB - tA; 
+    });
+
+    let runnerName = docs[0].runnerName;
+    let division = docs[0].division;
+
+    document.getElementById('detail-runner-name').textContent = `${runnerName} さん`;
+    document.getElementById('detail-runner-info').innerHTML = `部門: ${division} / No: ${bib}`;
+
+    let html = '<table class="report-table">';
+    html += '<tr><th>地点</th><th>通過時刻</th><th>経過時間</th></tr>';
+
+    docs.forEach(d => {
+      let dTime = d.time || '--:--:--';
+      if (d.scanTimestamp) {
+        const dt = d.scanTimestamp.toDate();
+        dTime = `${dt.getDate()}日 ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+      }
+
+      let eTime = "--:--";
+      let isRetire = (String(d.id) === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'))));
+
+      if (isRetire) {
+        eTime = "DNF";
+      } else if (startScanDateObj && d.scanTimestamp) {
+        eTime = calculateElapsedTime(d.scanTimestamp.toDate(), startScanDateObj);
+      } else if (!startScanDateObj) {
+        eTime = "Start未";
+      }
+
+      html += `<tr>
+        <td style="text-align:left;">${d.name}</td>
+        <td>${dTime}</td>
+        <td style="font-weight:bold;">${eTime}</td>
+      </tr>`;
+    });
+    html += '</table>';
+    document.getElementById('detail-list').innerHTML = html;
+
+  } catch(e) {
+    console.error("詳細取得エラー", e);
+    document.getElementById('detail-list').innerHTML = '<p style="color:red;">データ取得に失敗しました</p>';
+  }
+}
+
+function closeRunnerDetail() {
+  document.getElementById('runner-detail-view').style.display = 'none';
+  document.getElementById('report-view').style.display = 'block';
+}
+
 async function showRetireList() {
   document.getElementById('setup').style.display = 'none';
   document.getElementById('retire-list-view').style.display = 'block';
@@ -673,7 +796,7 @@ async function showRetireList() {
   listDiv.innerHTML = '全データを解析してリタイヤ状況を取得中...';
 
   try {
-    const snapshot = await firestore.collection('scans').get();
+    const snapshot = await firestore.collection('scans_spring_2026').get();
     if (snapshot.empty) {
       listDiv.innerHTML = '<p>データがありません。</p>';
       return;
@@ -794,7 +917,11 @@ function startScanner() {
       const parts = text.split('/');
       
       if (parts.length >= 4) {
-        const [division, bibNumber, runnerName, gender, startTime = ''] = parts;
+        const [rawDivision, bibNumber, runnerName, gender, startTime = ''] = parts;
+        
+        // データの正規化処理（全角→半角、スペース削除、大文字化）
+        let cleanDivision = String(rawDivision).normalize('NFKC').replace(/[\s　]+/g, "").toUpperCase();
+
         let locData = null;
 
         if (selectedLocationId == '99') {
@@ -808,7 +935,7 @@ function startScanner() {
         const scanData = {
           id: selectedLocationId,
           name: selectedLocationName,
-          division,
+          division: cleanDivision,
           bibNumber,
           runnerName,
           gender,
@@ -889,22 +1016,18 @@ async function uploadToFirebase(data) {
   }
 
   const docId = `${data.id}_${data.bibNumber}`;
-  const docRef = firestore.collection("scans").doc(docId);
+  const docRef = firestore.collection("scans_spring_2026").doc(docId);
 
   try {
     let exists = false;
 
-    // ▼▼▼ 修正: 読み取り(get)の失敗を許容する ▼▼▼
     try {
       const docSnap = await docRef.get();
       exists = docSnap.exists;
     } catch (e) {
-      // ここに来るのは「オフラインかつ永続化が無効」な場合など
       console.warn("重複チェックスキップ（オフラインまたはエラー）:", e);
-      // エラーが出ても止めずに、exists = false（新規扱い）として次に進む
       exists = false;
     }
-    // ▲▲▲ 修正ここまで ▲▲▲
 
     if (exists) {
       console.warn("Already exists:", docId);
@@ -912,13 +1035,11 @@ async function uploadToFirebase(data) {
       return; 
     }
 
-    // 保存処理
     await docRef.set(data, { merge: true });
     
     console.log("Data saved (Offline/Online):", docId);
     document.getElementById('message').textContent = `${data.bibNumber} 保存完了`;
 
-    // リタイヤ速報
     if (String(data.id) === '99' || data.name.includes("リタイヤ") || data.name.includes("リタイア")) {
       firestore.collection('broadcast').doc('latest_retire').set({
         bibNumber: data.bibNumber,
@@ -1019,17 +1140,11 @@ function showRetireAlert(data) {
 try {
   firebase.initializeApp(firebaseConfig);
   firestore = firebase.firestore();
-
-  // ▼▼▼ 修正箇所：複数タブ対策とエラー表示 ▼▼▼
   
-  // { synchronizeTabs: true } を追加することで、複数タブでの同時利用を試みます
   firestore.enablePersistence({ synchronizeTabs: true })
     .catch((err) => {
-      // それでもエラーになった場合（古いブラウザなど）の対策
       if (err.code == 'failed-precondition') {
         console.error("複数タブエラー:", err);
-        
-        // 画面に大きく警告を出す
         showCustomPopup({
           title: "⚠ 警告",
           message: `
@@ -1040,19 +1155,14 @@ try {
             </div>
           `,
           buttons: [{ text: "再読み込み", value: true }],
-          callback: () => {
-            window.location.reload();
-          }
+          callback: () => { window.location.reload(); }
         });
-        
         document.getElementById('message').textContent = '⚠ 複数タブで起動中';
         document.getElementById('message').style.color = 'red';
-
       } else if (err.code == 'unimplemented') {
         console.log('ブラウザがオフライン保存に対応していません');
       }
     });
-  // ▲▲▲ 修正ここまで ▲▲▲
 
   setTimeout(() => {
     initializeAppLogic();
