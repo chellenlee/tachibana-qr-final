@@ -1,6 +1,6 @@
 // 1. キャッシュの名前（バージョン）
 // アプリを更新するたびに、ここを 'v3', 'v4'... と書き換えてください
-const CACHE_NAME = 'qr-app-cache-v5';
+const CACHE_NAME = 'qr-app-cache-v6';
 
 // 2. キャッシュするファイルの一覧
 // index.htmlで読み込んでいるURLと「一字一句」同じにする必要があります
