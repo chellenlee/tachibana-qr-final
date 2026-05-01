@@ -314,14 +314,18 @@ function calculatePace(timeMs, distKm) {
   let paceMin = (timeMs / (1000 * 60)) / distKm;
   let pMin = Math.floor(paceMin);
   let pSec = Math.floor((paceMin - pMin) * 60);
-  return `${pMin}'${String(pSec).padStart(2, '0')}"/km`;
+  // 幅を節約するため、末尾の "/km" を削除しました
+  return `${pMin}'${String(pSec).padStart(2, '0')}"`;
 }
 
 function formatElapsed(diffMs) {
   if (diffMs < 0) return "Err"; 
   const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
   const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  return `${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}`;
+  // 秒単位の計算を追加しました
+  const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
+  // HH:MM:SS のフォーマットで出力します
+  return `${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}:${String(diffSecs).padStart(2, '0')}`;
 }
 
 async function showRunnerDetail(bib) {
