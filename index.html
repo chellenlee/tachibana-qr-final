@@ -318,7 +318,7 @@ function calculatePace(timeMs, distKm) {
 }
 
 function formatElapsed(diffMs) {
-  if (diffMs < 0) return "Start無"; 
+  if (diffMs < 0) return "Err"; 
   const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
   const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
   return `${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}`;
