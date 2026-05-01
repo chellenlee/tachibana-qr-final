@@ -539,7 +539,7 @@ function closeReport() {
 }
 
 async function showStats() {
-  if (codeReader) codeReader.reset(); // 修正：カメラ解放
+  if (codeReader) codeReader.reset(); // カメラ解放
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('stats-view').style.display = 'block';
@@ -550,7 +550,10 @@ async function showStats() {
     const snapshot = await firestore.collection('scans_spring_2026').get();
     const locIndexMap = {}; locations.forEach((loc, index) => { locIndexMap[String(loc.id)] = index; });
     const statsMap = {};
-    locations.forEach((_, i) => { statsMap[i] = { E: 0, L: 0, M: 0, S: 0, total: 0, retire: 0 }; });
+    
+    locations.forEach((_, i) => { 
+      statsMap[i] = { E: 0, L: 0, M: 0, S: 0, total: 0, retire: 0, retireDiv: { E: 0, L: 0, M: 0, S: 0 } }; 
+    });
 
     const runnerStatus = {};
     snapshot.forEach(doc => {
@@ -579,36 +582,73 @@ async function showStats() {
       }
       if (r.isRetire) {
         let nextLoc = r.maxIdx + 1;
-        if (statsMap[nextLoc]) statsMap[nextLoc].retire++;
+        if (statsMap[nextLoc]) {
+          statsMap[nextLoc].retire++;
+          if (r.div !== 'other' && statsMap[nextLoc].retireDiv[r.div] !== undefined) {
+            statsMap[nextLoc].retireDiv[r.div]++;
+          }
+        }
       }
     });
 
-    let html = '<table class="stats-table"><tr><th style="min-width:11em;">地点</th>';
-    TARGET_DIVISIONS.forEach(div => { html += `<th>${div}</th>`; });
-    html += '<th>計</th><th>未</th><th>リ</th></tr>';
+    let html = '<div style="overflow-x: auto;"><table class="stats-table">';
+    html += '<tr>';
+    html += '<th rowspan="2" style="white-space: nowrap; padding: 4px 8px; vertical-align: middle;">地点</th>';
+    html += '<th colspan="4" style="border-bottom: 1px solid #ccc; padding: 4px; text-align: center;">未通過数</th>';
+    html += '<th rowspan="2" style="white-space: nowrap; padding: 4px; vertical-align: middle;">通過</th>';
+    html += '<th rowspan="2" style="white-space: nowrap; padding: 4px; vertical-align: middle;">未通過計</th>';
+    html += '<th rowspan="2" style="white-space: nowrap; padding: 4px; vertical-align: middle;">リタイヤ</th>';
+    html += '</tr><tr>';
+    TARGET_DIVISIONS.forEach(div => { html += `<th style="padding: 4px; text-align: center;">${div}</th>`; });
+    html += '</tr>';
 
     const startLocIdx = locIndexMap["2"];
-    const startRunnerCount = (startLocIdx !== undefined) ? statsMap[startLocIdx].total : 0;
-    let cumulativeRetire = 0;
+    
+    const startCount = { E: 0, L: 0, M: 0, S: 0, total: 0 };
+    if (startLocIdx !== undefined) {
+      TARGET_DIVISIONS.forEach(div => { startCount[div] = statsMap[startLocIdx][div]; });
+      startCount.total = statsMap[startLocIdx].total;
+    }
+
+    let cumulativeRetire = { E: 0, L: 0, M: 0, S: 0, total: 0 };
 
     locations.forEach((loc, index) => {
       if (String(loc.id) === '99') return;
       const passedTotal = statsMap[index].total;
-      const retiredHere = statsMap[index].retire;
-      cumulativeRetire += retiredHere;
+      
+      cumulativeRetire.total += statsMap[index].retire;
+      TARGET_DIVISIONS.forEach(div => { cumulativeRetire[div] += statsMap[index].retireDiv[div]; });
 
-      let unpassed = 0;
+      let unpassedTotal = 0;
+      let unpassedDiv = { E: '-', L: '-', M: '-', S: '-' };
+
       if (index >= startLocIdx) {
-        unpassed = startRunnerCount - passedTotal - cumulativeRetire;
-        if (unpassed < 0) unpassed = 0;
+        TARGET_DIVISIONS.forEach(div => {
+          let unp = startCount[div] - statsMap[index][div] - cumulativeRetire[div];
+          unpassedDiv[div] = unp < 0 ? 0 : unp;
+        });
+        
+        unpassedTotal = startCount.total - passedTotal - cumulativeRetire.total;
+        if (unpassedTotal < 0) unpassedTotal = 0;
       }
 
-      html += `<tr><td style="min-width:11em; max-width:11em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left;">${loc.name}</td>`;
-      TARGET_DIVISIONS.forEach(div => { html += `<td>${statsMap[index][div]}</td>`; });
-      html += `<td style="font-weight:bold; color:blue;">${passedTotal}</td><td style="color:red;">${(index >= startLocIdx) ? unpassed : '-'}</td><td>${retiredHere > 0 ? '+' + retiredHere : 0}</td></tr>`;
+      html += `<tr><td style="white-space: nowrap; text-align: left; padding: 4px 8px;">${loc.name}</td>`;
+      
+      // ★ 未通過数（ELMS各部門）：赤字
+      TARGET_DIVISIONS.forEach(div => { 
+        html += `<td style="color:red; font-weight:bold;">${unpassedDiv[div]}</td>`; 
+      });
+      
+      // ★ 通過：青字
+      html += `<td style="color:blue; font-weight:bold;">${passedTotal}</td>`;
+      // ★ 未通過計：赤字
+      html += `<td style="color:red; font-weight:bold;">${(index >= startLocIdx) ? unpassedTotal : '-'}</td>`;
+      // ★ リタイヤ：黒字
+      html += `<td style="color:black; font-weight:bold;">${statsMap[index].retire > 0 ? '+' + statsMap[index].retire : 0}</td></tr>`;
     });
 
-    html += '</table><p style="text-align:right; font-size:14px; color:#666;">※未通過 = スタート総数 - (通過計 + 累計リタイヤ)</p>';
+    html += '</table></div>';
+    html += '<p style="text-align:right; font-size:12px; color:#666;">※未通過数 ＝ スタート数 － (通過数 ＋ 累計リタイヤ)</p>';
     listDiv.innerHTML = html;
   } catch (error) {
     console.error("集計エラー:", error);
