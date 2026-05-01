@@ -26,108 +26,53 @@
   <style>
     body { font-family: sans-serif; margin: 0; padding: 0; background: #f0f0f0; font-size: 18px; }
     #title-banner {
-      background-color: #003366;
-      color: white;
-      padding: 20px;
-      font-size: 18px;
-      font-weight: bold;
-      text-align: center;
+      background-color: #003366; color: white; padding: 20px; font-size: 18px; font-weight: bold; text-align: center;
     }
-    
     #setup, #reader, #result, #history-view, #stats-view, #report-view, #retire-list-view, #runner-detail-view { margin: 20px; }
     
     #setup input, #setup select {
-      text-align: left;
-      text-indent: 2em;
-      width: 80%;
-      margin-bottom: 10px;
-      font-size: 20px;
+      text-align: left; text-indent: 2em; width: 80%; margin-bottom: 10px; font-size: 20px;
     }
-    video {
-      width: 90vw;
-      height: 90vw;
-      margin-top: 10px;
-      object-fit: cover;
-    }
-    
+    /* 修正：iPad等での巨大化を防ぐ */
+    video { width: 90vw; max-width: 500px; max-height: 50vh; margin-top: 10px; object-fit: cover; }
     input, select, button { padding: 12px; font-size: 20px; margin: 8px; }
     #message { font-size: 22px; font-weight: bold; color: green; margin: 15px; }
 
     .save-button, .start-button, .history-button, .stats-button, .report-button, .retire-button, .retire-list-button {
-      color: white;
-      border: none;
-      padding: 10px;
-      font-size: 20px;
-      border-radius: 8px;
-      box-shadow: 0 5px #444444;
-      cursor: pointer;
-      display: block;
-      width: 60%;
-      margin: 15px auto;
-      text-align: center;
+      color: white; border: none; padding: 10px; font-size: 20px; border-radius: 8px; box-shadow: 0 5px #444444; cursor: pointer; display: block; width: 60%; margin: 15px auto; text-align: center;
     }
-
     .save-button, .start-button { background: linear-gradient(#888888, #666666); }
     .history-button, .stats-button, .report-button { background: linear-gradient(#4a90e2, #003366); }
-    .retire-button { background: linear-gradient(#d32f2f, #8e0000); }
-    .retire-list-button { background: linear-gradient(#d32f2f, #8e0000); }
-
+    .retire-button, .retire-list-button { background: linear-gradient(#d32f2f, #8e0000); }
     .save-button:active, .start-button:active, .history-button:active, .stats-button:active, .report-button:active, .retire-button:active, .retire-list-button:active {
-      box-shadow: 0 2px #444444;
-      transform: translateY(3px);
+      box-shadow: 0 2px #444444; transform: translateY(3px);
     }
 
-    .history-table, .stats-table, .report-table, .retire-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-      background: white;
-      font-size: 13px;
+    .history-table, .stats-table, .report-table, .retire-table, .detail-table {
+      width: 100%; border-collapse: collapse; margin-top: 10px; background: white; font-size: 13px;
     }
-    .history-table th, .history-table td, 
-    .stats-table th, .stats-table td,
-    .report-table th, .report-table td,
-    .retire-table th, .retire-table td {
-      border: 1px solid #ccc;
-      padding: 4px;
-      text-align: center;
-      line-height: 1.2;
+    .history-table th, .history-table td, .stats-table th, .stats-table td, .report-table th, .report-table td, .retire-table th, .retire-table td, .detail-table th, .detail-table td {
+      border: 1px solid #ccc; padding: 4px; text-align: center; line-height: 1.2;
     }
-    .history-table th, .stats-table th, .report-table th, .retire-table th {
-      background-color: #eee;
-      white-space: nowrap;
-      font-size: 12px;
+    .history-table th, .stats-table th, .report-table th, .retire-table th, .detail-table th {
+      background-color: #eee; white-space: nowrap; font-size: 12px;
     }
     .stats-table th { background-color: #d0e0f0; }
-    .report-table th { background-color: #ffe0b2; }
+    .report-table th, .detail-table th { background-color: #ffe0b2; }
     .retire-table th { background-color: #ffcdd2; }
+    
+    .kari-text { color: red; font-weight: bold; }
+    .eta-text { color: red; }
 
     #popup-overlay {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.5);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 9999;
     }
-    #popup {
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      text-align: center;
-      width: 80%;
-      max-width: 400px;
-    }
+    #popup { background: white; padding: 20px; border-radius: 8px; text-align: center; width: 80%; max-width: 400px; }
     #popup h2 { margin-top: 0; font-size: 24px; }
     #popup p { margin: 5px 0; font-size: 20px; }
     #popup button { padding: 10px 20px; margin: 10px; font-size: 20px; }
-    
-    #retire-banner { display: none; }
   </style>
 </head>
-
 <body>
 
 <div id="title-banner">橘湾岸ＱＲ2026春</div>
@@ -136,9 +81,7 @@
   <h2 style="text-align:left; margin-left: 2em;">担当者入力・地点選択</h2>
   <input type="text" id="staffName" placeholder="担当者名を入力">
   <br>
-  <select id="location">
-    <option value="">地点を選択</option>
-  </select>
+  <select id="location"><option value="">地点を選択</option></select>
   <br>
   <button class="start-button" onclick="startApp()">読み取り開始</button>
   <br>
@@ -178,9 +121,8 @@
   <button class="save-button" onclick="closeReport()">戻る</button>
 </div>
 
-<!-- 新設：ランナー詳細画面 -->
 <div id="runner-detail-view" style="display:none;">
-  <h3 id="detail-runner-name" style="margin-bottom: 5px;">ランナー詳細</h3>
+  <h3 id="detail-runner-name" style="margin-bottom: 5px;"></h3>
   <div id="detail-runner-info" style="font-size: 16px; font-weight: bold; margin-bottom: 15px;"></div>
   <div id="detail-list">データ読込中...</div>
   <br>
@@ -226,7 +168,6 @@ let codeReader = null;
 let locations = []; 
 let allScanDataForReport = [];
 
-// 今回の固定部門
 const TARGET_DIVISIONS = ['E', 'L', 'M', 'S'];
 
 const firebaseConfig = {
@@ -241,7 +182,6 @@ const firebaseConfig = {
 async function initializeAppLogic() {
   const savedStaff = localStorage.getItem('staffName');
   const savedLocationId = localStorage.getItem('locationId');
-  
   if (savedStaff) document.getElementById('staffName').value = savedStaff;
 
   const locationSelect = document.getElementById('location');
@@ -249,12 +189,8 @@ async function initializeAppLogic() {
   locationSelect.disabled = true;
 
   try {
-    const snapshot = await firestore.collection("locations_master_spring")
-                                    .orderBy("id", "asc")
-                                    .get();
-
+    const snapshot = await firestore.collection("locations_master_spring").orderBy("id", "asc").get();
     if (snapshot.empty) {
-      console.error("地点マスターが空です。");
       locationSelect.innerHTML = '<option value="">地点取得失敗</option>';
       return;
     }
@@ -270,12 +206,9 @@ async function initializeAppLogic() {
       option.textContent = loc.name;
       locationSelect.appendChild(option);
     });
-    
-    if (savedLocationId) {
-      locationSelect.value = savedLocationId;
-    }
+    if (savedLocationId) locationSelect.value = savedLocationId;
   } catch (err) {
-    console.error("地点マスターの読み込みに失敗しました:", err);
+    console.error("地点マスターの読み込みに失敗:", err); // 修正：エラーログ出力
     locationSelect.innerHTML = '<option value="">読込エラー</option>';
   } finally {
     locationSelect.disabled = false;
@@ -287,11 +220,7 @@ function startApp() {
   const locationId = document.getElementById('location').value;
 
   if (!staff || !locationId) {
-    showCustomPopup({
-      title: "確認",
-      message: "担当者名と地点を入力・選択してください。",
-      buttons: [{ text: "OK", value: true }]
-    });
+    showCustomPopup({ title: "確認", message: "担当者名と地点を入力してください。", buttons: [{ text: "OK", value: true }] });
     return;
   }
   
@@ -302,20 +231,15 @@ function startApp() {
   localStorage.setItem('locationName', selectedLocationName); 
 
   document.getElementById('setup').style.display = 'none';
-  document.getElementById('reader').style.display = '';
-  document.getElementById('result').style.display = '';
-
+  document.getElementById('reader').style.display = 'block';
+  document.getElementById('result').style.display = 'block';
   startScanner();
 }
 
 function startRetireScan() {
   staff = document.getElementById('staffName').value.trim();
   if (!staff) {
-    showCustomPopup({
-      title: "確認",
-      message: "担当者名を入力してください。",
-      buttons: [{ text: "OK", value: true }]
-    });
+    showCustomPopup({ title: "確認", message: "担当者名を入力してください。", buttons: [{ text: "OK", value: true }] });
     return;
   }
   localStorage.setItem('staffName', staff);
@@ -324,23 +248,384 @@ function startRetireScan() {
   selectedLocationName = retireLoc ? retireLoc.name : "リタイヤ";
 
   document.getElementById('setup').style.display = 'none';
-  document.getElementById('reader').style.display = '';
-  document.getElementById('result').style.display = '';
-
+  document.getElementById('reader').style.display = 'block';
+  document.getElementById('result').style.display = 'block';
   startScanner();
+}
+
+// 修正：スキャナの確実な終了
+function endApp() {
+  if (codeReader) {
+    codeReader.reset();
+  }
+  document.getElementById('setup').style.display = 'block';
+  document.getElementById('reader').style.display = 'none';
+  document.getElementById('result').style.display = 'none';
+}
+
+function getEffectiveStartTime(docs) {
+  let startDoc = docs.find(d => String(d.id) === "2");
+  
+  if (startDoc && startDoc.scanTimestamp) {
+    let sDate = startDoc.scanTimestamp.toDate();
+    let startH = sDate.getHours();
+    let startM = sDate.getMinutes();
+    if (startM >= 11) startH += 1;
+    let roundedStart = new Date(sDate);
+    roundedStart.setHours(startH, 0, 0, 0);
+    return { time: roundedStart, isKari: false, label: `${String(startH).padStart(2, '0')}:00` };
+  }
+
+  let anyDoc = docs[0];
+  if (anyDoc && anyDoc.qrStartTime) {
+    let [qH, qM] = anyDoc.qrStartTime.split(':').map(Number);
+    // 修正：JavaScriptの月は0始まりのため、4を指定すると5月になります
+    let kariDate = new Date(2026, 4, 4, qH, qM, 0, 0);
+    
+    // M部門 または S部門 の場合は、日付を 5日 に変更
+    if (anyDoc.division === 'M' || anyDoc.division === 'S') {
+      kariDate.setDate(5);
+    }
+    
+    return { time: kariDate, isKari: true, label: `${anyDoc.qrStartTime}(仮)` };
+  }
+  return { time: null, isKari: false, label: "Start未" };
+}
+
+function calculatePace(timeMs, distKm) {
+  if (distKm <= 0 || timeMs <= 0) return "-";
+  let paceMin = (timeMs / (1000 * 60)) / distKm;
+  let pMin = Math.floor(paceMin);
+  let pSec = Math.floor((paceMin - pMin) * 60);
+  return `${pMin}'${String(pSec).padStart(2, '0')}"/km`;
+}
+
+function formatElapsed(diffMs) {
+  if (diffMs < 0) return "Start前"; 
+  const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  return `${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}`;
+}
+
+async function showRunnerDetail(bib) {
+  document.getElementById('report-view').style.display = 'none';
+  document.getElementById('runner-detail-view').style.display = 'block';
+  document.getElementById('detail-runner-info').innerHTML = `ゼッケン: ${bib} のデータを取得中...`;
+  document.getElementById('detail-list').innerHTML = '';
+
+  try {
+    const snapshot = await firestore.collection('scans_spring_2026').where('bibNumber', '==', bib).get();
+    if (snapshot.empty) { document.getElementById('detail-list').innerHTML = '<p>データが見つかりません。</p>'; return; }
+
+    let docs = snapshot.docs.map(doc => doc.data());
+    let division = docs[0].division;
+    let runnerName = docs[0].runnerName;
+    
+    let targetLocs = locations.filter(l => l.divisions && l.divisions.includes(division) && String(l.id) !== "1" && String(l.id) !== "99");
+    targetLocs.sort((a, b) => (a.distances[division] || 0) - (b.distances[division] || 0));
+
+    let effStart = getEffectiveStartTime(docs);
+    let startLabelClass = effStart.isKari ? "kari-text" : "";
+
+    document.getElementById('detail-runner-name').textContent = `${runnerName} さん`;
+    document.getElementById('detail-runner-info').innerHTML = `部門: ${division} / No: ${bib} / Start: <span class="${startLabelClass}">${effStart.label}</span>`;
+
+    let isDNF = docs.some(d => String(d.id) === '99');
+    let maxDistPassed = 0;
+    let overallAvgPaceRaw = 0;
+    let latestPassedTime = 0;
+
+    targetLocs.forEach(loc => {
+      let scan = docs.find(d => String(d.id) === String(loc.id));
+      if (scan && scan.scanTimestamp && effStart.time) {
+        let dist = loc.distances[division] || 0;
+        let ts = scan.scanTimestamp.toMillis();
+        if (dist > maxDistPassed) {
+          maxDistPassed = dist;
+          latestPassedTime = ts;
+          overallAvgPaceRaw = (ts - effStart.time.getTime()) / dist;
+        }
+      }
+    });
+
+    let html = '<table class="detail-table"><tr><th>地点</th><th>距離</th><th>通過時刻</th><th>区間ペース</th><th>ペース</th><th>経過</th></tr>';
+    let prevDist = 0;
+    let prevTimeMs = effStart.time ? effStart.time.getTime() : 0;
+
+    targetLocs.forEach((loc) => {
+      let scan = docs.find(d => String(d.id) === String(loc.id));
+      let dist = loc.distances[division] || 0;
+      let distStr = dist.toFixed(1);
+      let passTimeStr = "--:--";
+      let secPaceStr = "-";
+      let totPaceStr = "-";
+      let elapsedStr = "--:--";
+      let isEta = false;
+
+      if (scan && scan.scanTimestamp) {
+        let ts = scan.scanTimestamp.toMillis();
+        let dt = scan.scanTimestamp.toDate();
+        passTimeStr = `${dt.getDate()}日 ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+        
+        if (effStart.time) {
+          elapsedStr = formatElapsed(ts - effStart.time.getTime());
+          totPaceStr = calculatePace(ts - effStart.time.getTime(), dist);
+          if (dist > prevDist) secPaceStr = calculatePace(ts - prevTimeMs, dist - prevDist);
+        }
+        prevDist = dist;
+        prevTimeMs = ts;
+      } else {
+        if (isDNF) {
+          passTimeStr = "DNF";
+        } else if (effStart.time && dist > maxDistPassed && overallAvgPaceRaw > 0) {
+          isEta = true;
+          let etaMs = effStart.time.getTime() + (dist * overallAvgPaceRaw);
+          let etaDt = new Date(etaMs);
+          passTimeStr = `${etaDt.getDate()}日 ${String(etaDt.getHours()).padStart(2, '0')}:${String(etaDt.getMinutes()).padStart(2, '0')}`;
+          
+          let estElapsed = etaMs - effStart.time.getTime();
+          elapsedStr = formatElapsed(estElapsed);
+          totPaceStr = calculatePace(estElapsed, dist);
+          secPaceStr = calculatePace(etaMs - prevTimeMs, dist - prevDist);
+          
+          prevDist = dist;
+          prevTimeMs = etaMs;
+        } else {
+          passTimeStr = "-";
+        }
+      }
+
+      let rowClass = isEta ? ' class="eta-text"' : '';
+      html += `<tr${rowClass}>
+        <td style="text-align:left;">${loc.name}</td>
+        <td>${distStr}</td>
+        <td>${passTimeStr}</td>
+        <td style="font-size:11px;">${secPaceStr}</td>
+        <td style="font-size:11px;">${totPaceStr}</td>
+        <td style="font-weight:bold;">${elapsedStr}</td>
+      </tr>`;
+    });
+
+    html += '</table><p style="text-align:right; font-size:12px; color:#888;">※赤字は総合平均ペースからの予測</p>';
+    document.getElementById('detail-list').innerHTML = html;
+
+  } catch(e) {
+    console.error("詳細情報取得エラー:", e); // 修正
+    document.getElementById('detail-list').innerHTML = '<p style="color:red;">データ取得失敗</p>';
+  }
+}
+
+function closeRunnerDetail() {
+  document.getElementById('runner-detail-view').style.display = 'none';
+  document.getElementById('report-view').style.display = 'block';
+}
+
+async function showReport() {
+  if (codeReader) codeReader.reset(); // 修正：カメラ解放
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('reader').style.display = 'none';
+  document.getElementById('report-view').style.display = 'block';
+  const listDiv = document.getElementById('report-list');
+  listDiv.innerHTML = '全データを解析中...';
+  const select = document.getElementById('report-division-select');
+  select.innerHTML = '<option value="">部門を抽出中...</option>';
+
+  try {
+    const snapshot = await firestore.collection('scans_spring_2026').get();
+    if (snapshot.empty) { listDiv.innerHTML = '<p>データなし</p>'; select.innerHTML = '<option value="">データなし</option>'; return; }
+
+    const locIndexMap = {}; locations.forEach((loc, index) => { locIndexMap[String(loc.id)] = index; });
+    const runnerMap = new Map();
+
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      const bib = d.bibNumber;
+      const lid = String(d.id);
+      const isRetire = String(lid) === '99';
+      const currentIndex = locIndexMap[lid] !== undefined ? locIndexMap[lid] : -1;
+
+      if (!runnerMap.has(bib)) runnerMap.set(bib, { docs: [], latestNormalData: null, retireData: null, _locationIndex: -1 });
+      const entry = runnerMap.get(bib);
+      entry.docs.push(d);
+
+      if (isRetire) {
+        if (!entry.retireData || (d.scanTimestamp && entry.retireData.scanTimestamp && d.scanTimestamp.toMillis() > entry.retireData.scanTimestamp.toMillis())) {
+          entry.retireData = d;
+        }
+      } else {
+        if (currentIndex > entry._locationIndex) {
+          entry.latestNormalData = d;
+          entry._locationIndex = currentIndex;
+        } else if (currentIndex === entry._locationIndex && entry.latestNormalData) {
+           if (d.scanTimestamp && entry.latestNormalData.scanTimestamp && d.scanTimestamp.toMillis() > entry.latestNormalData.scanTimestamp.toMillis()) {
+             entry.latestNormalData = d;
+           }
+        }
+      }
+    });
+
+    allScanDataForReport = Array.from(runnerMap.values()).map(entry => {
+      let targetData = entry.latestNormalData || entry.retireData;
+      if (!targetData) return null;
+      let effStart = getEffectiveStartTime(entry.docs);
+      return { ...targetData, _effStart: effStart, _locationIndex: entry._locationIndex, _isDNF: !!entry.retireData, _retireData: entry.retireData };
+    }).filter(d => d !== null);
+
+    const divisions = new Set(allScanDataForReport.map(d => d.division));
+    const sortedDivisions = Array.from(divisions).sort();
+    
+    select.innerHTML = '<option value="">部門を選択...</option>';
+    sortedDivisions.forEach(div => { select.appendChild(new Option(div, div)); });
+    listDiv.innerHTML = '<p>上のボックスから部門を選択してください。</p>';
+  } catch (error) {
+    console.error("速報取得エラー:", error);
+    listDiv.innerHTML = '<p style="color:red;">取得失敗</p>';
+  }
+}
+
+function updateReportView() {
+  const select = document.getElementById('report-division-select');
+  const selectedDiv = select.value;
+  const listDiv = document.getElementById('report-list');
+  if (!selectedDiv) { listDiv.innerHTML = '<p>部門を選択してください。</p>'; return; }
+
+  let filtered = allScanDataForReport.filter(d => d.division === selectedDiv);
+  filtered.sort((a, b) => {
+    if (b._locationIndex !== a._locationIndex) return b._locationIndex - a._locationIndex; 
+    const tA = a.scanTimestamp ? a.scanTimestamp.toMillis() : 0;
+    const tB = b.scanTimestamp ? b.scanTimestamp.toMillis() : 0;
+    return tA - tB; 
+  });
+
+  let html = '<table class="report-table"><tr><th>順位</th><th>No.</th><th>氏名</th><th>地点</th><th>通過</th><th>経過</th></tr>';
+
+  filtered.forEach((d, index) => {
+    let elapsedTime = "--:--";
+    let passageLabel = "--:--";
+
+    if (d._isDNF) {
+      elapsedTime = "DNF";
+      const retDate = d._retireData.scanTimestamp ? d._retireData.scanTimestamp.toDate() : null;
+      passageLabel = retDate ? `${retDate.getDate()}日<br>${String(retDate.getHours()).padStart(2, '0')}:${String(retDate.getMinutes()).padStart(2, '0')}` : "リタイヤ";
+    } else {
+      const currentObj = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
+      if (currentObj && d._effStart.time) {
+        elapsedTime = formatElapsed(currentObj.getTime() - d._effStart.time.getTime());
+      } else if (!d._effStart.time) {
+        elapsedTime = "Start未"; 
+      }
+      passageLabel = currentObj ? `${currentObj.getDate()}日<br>${String(currentObj.getHours()).padStart(2, '0')}:${String(currentObj.getMinutes()).padStart(2, '0')}` : (d.time || "");
+    }
+
+    let startKariClass = (d._effStart.isKari && !d._isDNF) ? "kari-text" : "";
+    let eTimeHtml = d._effStart.isKari && !d._isDNF ? `<span class="${startKariClass}">${elapsedTime}</span>` : elapsedTime;
+
+    html += `<tr>
+      <td style="font-weight:bold;">${index + 1}</td> <td>${d.bibNumber}</td>
+      <td style="text-align:left;"><a href="#" onclick="showRunnerDetail('${d.bibNumber}'); return false;" style="color: blue; text-decoration: underline;">${d.runnerName}</a></td>
+      <td style="text-align:left;">${d._isDNF ? d._retireData.name : d.name}</td>
+      <td style="font-size: 14px; line-height: 1.2;">${passageLabel}</td>
+      <td style="font-weight:bold;">${eTimeHtml}</td>
+    </tr>`;
+  });
+  html += '</table>';
+  html += `<p style="text-align:right; font-size:14px;">該当: ${filtered.length}名</p>`;
+  listDiv.innerHTML = html;
+}
+
+function closeReport() {
+  document.getElementById('report-view').style.display = 'none';
+  document.getElementById('setup').style.display = 'block';
+}
+
+async function showStats() {
+  if (codeReader) codeReader.reset(); // 修正：カメラ解放
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('reader').style.display = 'none';
+  document.getElementById('stats-view').style.display = 'block';
+  const listDiv = document.getElementById('stats-list');
+  listDiv.innerHTML = '全データを解析・集計中...';
+
+  try {
+    const snapshot = await firestore.collection('scans_spring_2026').get();
+    const locIndexMap = {}; locations.forEach((loc, index) => { locIndexMap[String(loc.id)] = index; });
+    const statsMap = {};
+    locations.forEach((_, i) => { statsMap[i] = { E: 0, L: 0, M: 0, S: 0, total: 0, retire: 0 }; });
+
+    const runnerStatus = {};
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      const bib = d.bibNumber;
+      const lid = String(d.id);
+      const isRetire = String(lid) === '99';
+      const locIdx = locIndexMap[lid];
+      
+      let div = d.division;
+      if (!TARGET_DIVISIONS.includes(div)) div = 'other';
+
+      if (!runnerStatus[bib]) runnerStatus[bib] = { div: div, maxIdx: -1, isRetire: false };
+      if (isRetire) runnerStatus[bib].isRetire = true;
+      else if (locIdx !== undefined && locIdx > runnerStatus[bib].maxIdx) runnerStatus[bib].maxIdx = locIdx;
+    });
+
+    Object.values(runnerStatus).forEach(r => {
+      if (r.maxIdx >= 0) {
+        for (let i = 0; i <= r.maxIdx; i++) {
+          if (statsMap[i]) {
+            if (r.div !== 'other' && statsMap[i][r.div] !== undefined) statsMap[i][r.div]++;
+            statsMap[i].total++;
+          }
+        }
+      }
+      if (r.isRetire) {
+        let nextLoc = r.maxIdx + 1;
+        if (statsMap[nextLoc]) statsMap[nextLoc].retire++;
+      }
+    });
+
+    let html = '<table class="stats-table"><tr><th style="min-width:11em;">地点</th>';
+    TARGET_DIVISIONS.forEach(div => { html += `<th>${div}</th>`; });
+    html += '<th>計</th><th>未</th><th>リ</th></tr>';
+
+    const startLocIdx = locIndexMap["2"];
+    const startRunnerCount = (startLocIdx !== undefined) ? statsMap[startLocIdx].total : 0;
+    let cumulativeRetire = 0;
+
+    locations.forEach((loc, index) => {
+      if (String(loc.id) === '99') return;
+      const passedTotal = statsMap[index].total;
+      const retiredHere = statsMap[index].retire;
+      cumulativeRetire += retiredHere;
+
+      let unpassed = 0;
+      if (index >= startLocIdx) {
+        unpassed = startRunnerCount - passedTotal - cumulativeRetire;
+        if (unpassed < 0) unpassed = 0;
+      }
+
+      html += `<tr><td style="min-width:11em; max-width:11em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left;">${loc.name}</td>`;
+      TARGET_DIVISIONS.forEach(div => { html += `<td>${statsMap[index][div]}</td>`; });
+      html += `<td style="font-weight:bold; color:blue;">${passedTotal}</td><td style="color:red;">${(index >= startLocIdx) ? unpassed : '-'}</td><td>${retiredHere > 0 ? '+' + retiredHere : 0}</td></tr>`;
+    });
+
+    html += '</table><p style="text-align:right; font-size:14px; color:#666;">※未通過 = スタート総数 - (通過計 + 累計リタイヤ)</p>';
+    listDiv.innerHTML = html;
+  } catch (error) {
+    console.error("集計エラー:", error);
+    listDiv.innerHTML = '<p style="color:red;">データの集計に失敗しました。</p>';
+  }
+}
+
+function closeStats() {
+  document.getElementById('stats-view').style.display = 'none';
+  document.getElementById('setup').style.display = 'block';
 }
 
 async function showHistory() {
   const staffInput = document.getElementById('staffName').value.trim();
-  if (!staffInput) {
-    showCustomPopup({
-      title: "確認",
-      message: "履歴を表示するには、担当者名を入力してください。",
-      buttons: [{ text: "OK", value: true }]
-    });
-    return;
-  }
-  if (codeReader) codeReader.reset();
+  if (!staffInput) { showCustomPopup({ title: "確認", message: "履歴を表示するには担当者名を入力してください。", buttons: [{ text: "OK", value: true }] }); return; }
+  
+  if (codeReader) codeReader.reset(); // 修正：カメラ解放
 
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none'; 
@@ -352,14 +637,8 @@ async function showHistory() {
   listDiv.innerHTML = 'データを取得中...';
 
   try {
-    const snapshot = await firestore.collection('scans_spring_2026')
-      .where('staff', '==', staffInput)
-      .get();
-
-    if (snapshot.empty) {
-      listDiv.innerHTML = '<p>読み取り履歴はありません。</p>';
-      return;
-    }
+    const snapshot = await firestore.collection('scans_spring_2026').where('staff', '==', staffInput).get();
+    if (snapshot.empty) { listDiv.innerHTML = '<p>読み取り履歴はありません。</p>'; return; }
 
     let docs = snapshot.docs.map(doc => doc.data());
     docs.sort((a, b) => {
@@ -368,21 +647,11 @@ async function showHistory() {
       return tB - tA; 
     });
 
-    let html = '<table class="history-table">';
-    html += '<tr><th>地点</th><th>部門</th><th>No.</th><th>氏名</th><th>時間</th></tr>';
-    
+    let html = '<table class="history-table"><tr><th>地点</th><th>部門</th><th>No.</th><th>氏名</th><th>時間</th></tr>';
     docs.forEach(d => {
-      const displayTime = d.time || '--:--:--';
-      html += `<tr>
-        <td style="text-align:left;">${d.name}</td>
-        <td>${d.division}</td>
-        <td>${d.bibNumber}</td>
-        <td style="text-align:left;">${d.runnerName}</td>
-        <td>${displayTime}</td>
-      </tr>`;
+      html += `<tr><td style="text-align:left;">${d.name}</td><td>${d.division}</td><td>${d.bibNumber}</td><td style="text-align:left;">${d.runnerName}</td><td>${d.time || '--:--:--'}</td></tr>`;
     });
-    html += '</table>';
-    html += `<p style="text-align:right; font-size:14px;">件数: ${docs.length}件</p>`;
+    html += `</table><p style="text-align:right; font-size:14px;">件数: ${docs.length}件</p>`;
     listDiv.innerHTML = html;
   } catch (error) {
     console.error("履歴取得エラー:", error);
@@ -392,453 +661,43 @@ async function showHistory() {
 
 function closeHistory() {
   document.getElementById('history-view').style.display = 'none';
-  document.getElementById('setup').style.display = '';
-}
-
-async function showStats() {
-  document.getElementById('setup').style.display = 'none';
-  document.getElementById('stats-view').style.display = 'block';
-
-  const listDiv = document.getElementById('stats-list');
-  listDiv.innerHTML = '全データを解析・集計中...';
-
-  try {
-    const snapshot = await firestore.collection('scans_spring_2026').get();
-    
-    const locIndexMap = {};
-    locations.forEach((loc, index) => {
-      locIndexMap[String(loc.id)] = index;
-    });
-
-    const statsMap = {};
-    locations.forEach((_, i) => {
-      statsMap[i] = { E: 0, L: 0, M: 0, S: 0, total: 0, retire: 0 };
-    });
-
-    const runnerStatus = {};
-
-    snapshot.forEach(doc => {
-      const d = doc.data();
-      const bib = d.bibNumber;
-      const lid = String(d.id);
-      const isRetire = (lid === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'))));
-      const locIdx = locIndexMap[lid];
-      
-      let div = d.division;
-      if (!TARGET_DIVISIONS.includes(div)) div = 'other';
-
-      if (!runnerStatus[bib]) {
-        runnerStatus[bib] = { div: div, maxIdx: -1, isRetire: false };
-      }
-
-      if (isRetire) {
-        runnerStatus[bib].isRetire = true;
-      } else if (locIdx !== undefined) {
-        if (locIdx > runnerStatus[bib].maxIdx) {
-          runnerStatus[bib].maxIdx = locIdx;
-        }
-      }
-    });
-
-    // ワープ補完を含めた集計処理
-    Object.values(runnerStatus).forEach(r => {
-      if (r.maxIdx >= 0) {
-        for (let i = 0; i <= r.maxIdx; i++) {
-          if (statsMap[i]) {
-            if (r.div !== 'other' && statsMap[i][r.div] !== undefined) {
-              statsMap[i][r.div]++;
-            }
-            statsMap[i].total++;
-          }
-        }
-      }
-      if (r.isRetire) {
-        let nextLoc = r.maxIdx + 1;
-        if (statsMap[nextLoc]) statsMap[nextLoc].retire++;
-      }
-    });
-
-    let html = '<table class="stats-table">';
-    html += '<tr><th style="min-width:11em;">地点</th>';
-    TARGET_DIVISIONS.forEach(div => { html += `<th>${div}</th>`; });
-    html += '<th>計</th><th>未</th><th>リ</th></tr>';
-
-    const startLocId = "2";
-    const startLocIdx = locIndexMap[startLocId];
-    const startRunnerCount = (startLocIdx !== undefined) ? statsMap[startLocIdx].total : 0;
-    let cumulativeRetire = 0;
-
-    locations.forEach((loc, index) => {
-      if (String(loc.id) === '99' || loc.name.includes("リタイヤ") || loc.name.includes("リタイア")) return;
-
-      const passedTotal = statsMap[index].total;
-      const retiredHere = statsMap[index].retire;
-      cumulativeRetire += retiredHere;
-
-      let unpassed = 0;
-      if (index >= startLocIdx) {
-        unpassed = startRunnerCount - passedTotal - cumulativeRetire;
-        if (unpassed < 0) unpassed = 0;
-      }
-
-      html += `<tr>
-        <td style="min-width:11em; max-width:11em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left;">${loc.name}</td>`;
-      
-      TARGET_DIVISIONS.forEach(div => {
-        html += `<td>${statsMap[index][div]}</td>`;
-      });
-        
-      html += `
-        <td style="font-weight:bold; color:blue;">${passedTotal}</td>
-        <td style="color:red;">${(index >= startLocIdx) ? unpassed : '-'}</td>
-        <td>${retiredHere > 0 ? '+' + retiredHere : 0}</td>
-      </tr>`;
-    });
-
-    html += '</table>';
-    html += `<p style="text-align:right; font-size:14px; color:#666;">※未通過 = スタート総数 - (通過計 + 累計リタイヤ)</p>`;
-    listDiv.innerHTML = html;
-
-  } catch (error) {
-    console.error("集計エラー:", error);
-    listDiv.innerHTML = '<p style="color:red;">データの集計に失敗しました。</p>';
-  }
-}
-
-function closeStats() {
-  document.getElementById('stats-view').style.display = 'none';
-  document.getElementById('setup').style.display = '';
-}
-
-async function showReport() {
-  document.getElementById('setup').style.display = 'none';
-  document.getElementById('report-view').style.display = 'block';
-
-  const listDiv = document.getElementById('report-list');
-  listDiv.innerHTML = '全データを解析中...';
-  
-  const select = document.getElementById('report-division-select');
-  select.innerHTML = '<option value="">部門を抽出中...</option>';
-
-  try {
-    const snapshot = await firestore.collection('scans_spring_2026').get();
-    if (snapshot.empty) {
-      listDiv.innerHTML = '<p>データがありません。</p>';
-      select.innerHTML = '<option value="">データなし</option>';
-      return;
-    }
-
-    const locationIndexMap = {};
-    locations.forEach((loc, index) => {
-      locationIndexMap[String(loc.id)] = index;
-    });
-    const startLocationId = "2";
-    const runnerMap = new Map();
-
-    snapshot.forEach(doc => {
-      const d = doc.data();
-      const bib = d.bibNumber;
-      const lid = String(d.id);
-      const isRetire = (lid === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'))));
-      const currentIndex = locationIndexMap[lid] !== undefined ? locationIndexMap[lid] : -1;
-      const scanDate = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
-
-      if (!runnerMap.has(bib)) {
-        runnerMap.set(bib, {
-          latestNormalData: null,
-          startScanTime: null,
-          retireData: null,
-          _locationIndex: -1
-        });
-      }
-      
-      const entry = runnerMap.get(bib);
-
-      if (isRetire) {
-        if (!entry.retireData || (scanDate && entry.retireData.scanTimestamp && scanDate > entry.retireData.scanTimestamp.toDate())) {
-          entry.retireData = d;
-        }
-      } else {
-        if (lid === startLocationId) {
-          entry.startScanTime = scanDate;
-        }
-        if (currentIndex > entry._locationIndex) {
-          entry.latestNormalData = d;
-          entry._locationIndex = currentIndex;
-        } else if (currentIndex === entry._locationIndex && entry.latestNormalData) {
-           const currentTs = scanDate ? scanDate.getTime() : 0;
-           const existingTs = entry.latestNormalData.scanTimestamp ? entry.latestNormalData.scanTimestamp.toMillis() : 0;
-           if (currentTs > existingTs) {
-             entry.latestNormalData = d;
-           }
-        }
-      }
-    });
-
-    allScanDataForReport = Array.from(runnerMap.values())
-      .map(entry => {
-        let targetData = entry.latestNormalData || entry.retireData;
-        if (!targetData) return null;
-
-        return {
-          ...targetData,
-          _realStartTime: entry.startScanTime,
-          _locationIndex: entry._locationIndex,
-          _isDNF: !!entry.retireData,
-          _retireData: entry.retireData
-        };
-      }).filter(d => d !== null);
-
-    const divisions = new Set(allScanDataForReport.map(d => d.division));
-    const sortedDivisions = Array.from(divisions).sort();
-    
-    select.innerHTML = '<option value="">部門を選択...</option>';
-    sortedDivisions.forEach(div => {
-      const opt = document.createElement('option');
-      opt.value = div;
-      opt.textContent = div;
-      select.appendChild(opt);
-    });
-    listDiv.innerHTML = '<p>上のボックスから部門を選択してください。</p>';
-
-  } catch (error) {
-    console.error("速報データ取得エラー:", error);
-    listDiv.innerHTML = '<p style="color:red;">データの取得に失敗しました。</p>';
-  }
-}
-
-function calculateElapsedTime(currentDateObj, startScanDateObj) {
-  if (!currentDateObj || !startScanDateObj) return "--:--";
-  
-  // 1時間単位の丸め処理 (10分までは切り捨て、11分以降は切り上げ)
-  let startH = startScanDateObj.getHours();
-  let startM = startScanDateObj.getMinutes();
-  if (startM >= 11) {
-    startH += 1;
-  }
-  let roundedStart = new Date(startScanDateObj);
-  roundedStart.setHours(startH, 0, 0, 0);
-
-  const diffMs = currentDateObj.getTime() - roundedStart.getTime();
-  if (diffMs < 0) return "Start前"; 
-  
-  const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  const hStr = String(diffHrs).padStart(2, '0');
-  const mStr = String(diffMins).padStart(2, '0');
-  return `${hStr}:${mStr}`;
-}
-
-function updateReportView() {
-  const select = document.getElementById('report-division-select');
-  const selectedDiv = select.value;
-  const listDiv = document.getElementById('report-list');
-
-  if (!selectedDiv) {
-    listDiv.innerHTML = '<p>部門を選択してください。</p>';
-    return;
-  }
-
-  if (typeof allScanDataForReport === 'undefined') {
-    return;
-  }
-
-  let filtered = allScanDataForReport.filter(d => d.division === selectedDiv);
-
-  filtered.sort((a, b) => {
-    if (b._locationIndex !== a._locationIndex) {
-      return b._locationIndex - a._locationIndex; 
-    }
-    const tA = a.scanTimestamp ? a.scanTimestamp.toMillis() : 0;
-    const tB = b.scanTimestamp ? b.scanTimestamp.toMillis() : 0;
-    return tA - tB; 
-  });
-
-  let html = '<table class="report-table">';
-  html += '<tr><th>順位</th><th>No.</th><th>氏名</th><th>地点</th><th>通過</th><th>経過</th></tr>';
-
-  filtered.forEach((d, index) => {
-    let elapsedTime = "--:--";
-    let passageLabel = "--:--";
-
-    if (d._isDNF) {
-      elapsedTime = "DNF";
-      const retDate = d._retireData.scanTimestamp ? d._retireData.scanTimestamp.toDate() : null;
-      if (retDate) {
-        passageLabel = `${retDate.getDate()}日<br>${String(retDate.getHours()).padStart(2, '0')}:${String(retDate.getMinutes()).padStart(2, '0')}`;
-      } else {
-        passageLabel = d._retireData.time || "リタイヤ";
-      }
-    } else {
-      const currentObj = d.scanTimestamp ? d.scanTimestamp.toDate() : null;
-      if (currentObj && d._realStartTime) {
-        elapsedTime = calculateElapsedTime(currentObj, d._realStartTime);
-      } else if (!d._realStartTime) {
-        elapsedTime = "Start未"; 
-      }
-
-      if (currentObj) {
-        passageLabel = `${currentObj.getDate()}日<br>${String(currentObj.getHours()).padStart(2, '0')}:${String(currentObj.getMinutes()).padStart(2, '0')}`; 
-      } else {
-        passageLabel = d.time || "";
-      }
-    }
-
-    html += `<tr>
-      <td style="font-weight:bold;">${index + 1}</td> <td>${d.bibNumber}</td>
-      <td style="text-align:left;">
-        <a href="#" onclick="showRunnerDetail('${d.bibNumber}'); return false;" style="color: blue; text-decoration: underline;">${d.runnerName}</a>
-      </td>
-      <td style="text-align:left;">${d._isDNF ? d._retireData.name : d.name}</td>
-      <td style="font-size: 14px; line-height: 1.2;">${passageLabel}</td>
-      <td style="font-weight:bold;">${elapsedTime}</td>
-    </tr>`;
-  });
-  html += '</table>';
-  html += `<p style="text-align:right; font-size:14px;">該当: ${filtered.length}名</p>`;
-  listDiv.innerHTML = html;
-}
-
-function closeReport() {
-  document.getElementById('report-view').style.display = 'none';
-  document.getElementById('setup').style.display = '';
-}
-
-async function showRunnerDetail(bib) {
-  document.getElementById('report-view').style.display = 'none';
-  document.getElementById('runner-detail-view').style.display = 'block';
-  
-  document.getElementById('detail-runner-info').innerHTML = `ゼッケン: ${bib} のデータを取得中...`;
-  document.getElementById('detail-list').innerHTML = '';
-
-  try {
-    const snapshot = await firestore.collection('scans_spring_2026')
-      .where('bibNumber', '==', bib)
-      .get();
-
-    if (snapshot.empty) {
-      document.getElementById('detail-list').innerHTML = '<p>データが見つかりません。</p>';
-      return;
-    }
-
-    let docs = snapshot.docs.map(doc => doc.data());
-    
-    // スタート時刻を取得
-    let startDoc = docs.find(d => String(d.id) === "2");
-    let startScanDateObj = startDoc && startDoc.scanTimestamp ? startDoc.scanTimestamp.toDate() : null;
-
-    const locIndexMap = {};
-    locations.forEach((loc, index) => { locIndexMap[String(loc.id)] = index; });
-
-    // 地点の降順、同地点なら時刻の降順
-    docs.sort((a, b) => {
-      let idxA = locIndexMap[String(a.id)] !== undefined ? locIndexMap[String(a.id)] : 999;
-      let idxB = locIndexMap[String(b.id)] !== undefined ? locIndexMap[String(b.id)] : 999;
-      if (idxB !== idxA) return idxB - idxA; 
-      
-      let tA = a.scanTimestamp ? a.scanTimestamp.toMillis() : 0;
-      let tB = b.scanTimestamp ? b.scanTimestamp.toMillis() : 0;
-      return tB - tA; 
-    });
-
-    let runnerName = docs[0].runnerName;
-    let division = docs[0].division;
-
-    document.getElementById('detail-runner-name').textContent = `${runnerName} さん`;
-    document.getElementById('detail-runner-info').innerHTML = `部門: ${division} / No: ${bib}`;
-
-    let html = '<table class="report-table">';
-    html += '<tr><th>地点</th><th>通過時刻</th><th>経過時間</th></tr>';
-
-    docs.forEach(d => {
-      let dTime = d.time || '--:--:--';
-      if (d.scanTimestamp) {
-        const dt = d.scanTimestamp.toDate();
-        dTime = `${dt.getDate()}日 ${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
-      }
-
-      let eTime = "--:--";
-      let isRetire = (String(d.id) === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'))));
-
-      if (isRetire) {
-        eTime = "DNF";
-      } else if (startScanDateObj && d.scanTimestamp) {
-        eTime = calculateElapsedTime(d.scanTimestamp.toDate(), startScanDateObj);
-      } else if (!startScanDateObj) {
-        eTime = "Start未";
-      }
-
-      html += `<tr>
-        <td style="text-align:left;">${d.name}</td>
-        <td>${dTime}</td>
-        <td style="font-weight:bold;">${eTime}</td>
-      </tr>`;
-    });
-    html += '</table>';
-    document.getElementById('detail-list').innerHTML = html;
-
-  } catch(e) {
-    console.error("詳細取得エラー", e);
-    document.getElementById('detail-list').innerHTML = '<p style="color:red;">データ取得に失敗しました</p>';
-  }
-}
-
-function closeRunnerDetail() {
-  document.getElementById('runner-detail-view').style.display = 'none';
-  document.getElementById('report-view').style.display = 'block';
+  document.getElementById('setup').style.display = 'block';
 }
 
 async function showRetireList() {
+  if (codeReader) codeReader.reset(); // 修正：カメラ解放
   document.getElementById('setup').style.display = 'none';
+  document.getElementById('reader').style.display = 'none';
   document.getElementById('retire-list-view').style.display = 'block';
-
   const listDiv = document.getElementById('retire-list-content');
-  listDiv.innerHTML = '全データを解析してリタイヤ状況を取得中...';
+  listDiv.innerHTML = 'データを取得中...';
 
   try {
     const snapshot = await firestore.collection('scans_spring_2026').get();
-    if (snapshot.empty) {
-      listDiv.innerHTML = '<p>データがありません。</p>';
-      return;
-    }
+    if (snapshot.empty) { listDiv.innerHTML = '<p>データがありません。</p>'; return; }
 
     const runners = {};
     snapshot.forEach(doc => {
       const d = doc.data();
       const bib = d.bibNumber;
-      const lid = String(d.id);
-      const isRetire = (lid === '99' || (d.name && (d.name.includes('リタイヤ') || d.name.includes('リタイア'))));
-
-      if (!runners[bib]) {
-        runners[bib] = { retireData: null, lastNormalData: null };
-      }
-      if (isRetire) {
+      if (!runners[bib]) runners[bib] = { retireData: null, lastNormalData: null };
+      if (String(d.id) === '99') {
         runners[bib].retireData = d;
       } else {
         const currentLast = runners[bib].lastNormalData;
         const thisTime = d.scanTimestamp ? d.scanTimestamp.toMillis() : 0;
         const lastTime = (currentLast && currentLast.scanTimestamp) ? currentLast.scanTimestamp.toMillis() : -1;
-        if (thisTime > lastTime) {
-          runners[bib].lastNormalData = d;
-        }
+        if (thisTime > lastTime) runners[bib].lastNormalData = d;
       }
     });
 
     const retireList = [];
     Object.keys(runners).forEach(bib => {
       const r = runners[bib];
-      if (r.retireData) {
-        retireList.push({
-          ...r.retireData,
-          _lastLocationName: r.lastNormalData ? r.lastNormalData.name : 'Start前'
-        });
-      }
+      if (r.retireData) retireList.push({ ...r.retireData, _lastLocationName: r.lastNormalData ? r.lastNormalData.name : 'Start前' });
     });
 
-    if (retireList.length === 0) {
-      listDiv.innerHTML = '<p>リタイヤ登録されたデータはありません。</p>';
-      return;
-    }
+    if (retireList.length === 0) { listDiv.innerHTML = '<p>リタイヤ登録はありません。</p>'; return; }
     
     retireList.sort((a, b) => {
       const tA = a.scanTimestamp ? a.scanTimestamp.toMillis() : 0;
@@ -846,84 +705,60 @@ async function showRetireList() {
       return tB - tA; 
     });
 
-    let html = '<table class="retire-table">';
-    html += '<tr><th>部門</th><th>No.</th><th>氏名</th><th>最終通過</th><th>日時</th><th>位置</th></tr>';
-
+    let html = '<table class="retire-table"><tr><th>部門</th><th>No.</th><th>氏名</th><th>最終通過</th><th>日時</th><th>位置</th></tr>';
     retireList.forEach(d => {
       let locationLink = "ー";
       if (d.latitude && d.longitude) {
-        const mapUrl = `https://www.google.com/maps?q=${d.latitude},${d.longitude}`;
-        locationLink = `<a href="${mapUrl}" target="_blank" style="text-decoration:underline; color:blue; cursor:pointer;">📍確認</a>`;
+        locationLink = `<a href="https://www.google.com/maps?q=${d.latitude},${d.longitude}" target="_blank" style="text-decoration:underline; color:blue;">📍確認</a>`;
       }
-      html += `<tr>
-        <td>${d.division}</td>
-        <td>${d.bibNumber}</td>
-        <td style="text-align:left;">${d.runnerName}</td>
-        <td style="font-weight:bold; color:#555;">${d._lastLocationName}</td>
-        <td>${d.date}<br>${d.time}</td>
-        <td>${locationLink}</td>
-      </tr>`;
+      html += `<tr><td>${d.division}</td><td>${d.bibNumber}</td><td style="text-align:left;">${d.runnerName}</td><td style="font-weight:bold; color:#555;">${d._lastLocationName}</td><td>${d.date}<br>${d.time}</td><td>${locationLink}</td></tr>`;
     });
-    html += '</table>';
-    html += `<p style="text-align:right; font-size:14px;">合計: ${retireList.length}名</p>`;
+    html += `</table><p style="text-align:right; font-size:14px;">合計: ${retireList.length}名</p>`;
     listDiv.innerHTML = html;
-
   } catch (error) {
-    console.error("リタイヤ一覧取得エラー:", error);
+    console.error("リタイヤリスト取得エラー:", error);
     listDiv.innerHTML = '<p style="color:red;">データの取得に失敗しました。</p>';
   }
 }
 
 function closeRetireList() {
   document.getElementById('retire-list-view').style.display = 'none';
-  document.getElementById('setup').style.display = '';
+  document.getElementById('setup').style.display = 'block';
 }
 
 function getLocation() {
   return new Promise((resolve) => {
-    if (!navigator.geolocation) {
-      console.warn("Geolocation is not supported by this browser.");
-      resolve(null);
-      return;
-    }
+    if (!navigator.geolocation) { resolve(null); return; }
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        });
-      },
-      (error) => {
-        console.warn("位置情報の取得に失敗:", error.message);
-        resolve(null); 
-      },
+      (position) => { resolve({ lat: position.coords.latitude, lng: position.coords.longitude }); },
+      (error) => { resolve(null); },
       { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
   });
 }
-  
+
 function startScanner() {
   const video = document.getElementById('video');
-  if (!codeReader) {
-    codeReader = new ZXing.BrowserQRCodeReader();
-  }
+  if (!codeReader) codeReader = new ZXing.BrowserQRCodeReader();
   document.getElementById('message').textContent = '読み取り中...';
 
   codeReader.decodeFromVideoDevice(undefined, video, async (result, err) => { 
     if (result) {
       codeReader.reset(); 
+      const parts = result.text.trim().split('/');
       
-      const text = result.text.trim();
-      const parts = text.split('/');
-      
-      if (parts.length >= 4) {
-        const [rawDivision, bibNumber, runnerName, gender, startTime = ''] = parts;
-        
-        // データの正規化処理（全角→半角、スペース削除、大文字化）
+      // 修正：必須項目の厳密なバリデーション
+      if (parts.length >= 4 && parts[1] && parts[2]) {
+        const [rawDivision, bibNumber, runnerName, gender, rawStartTime = ''] = parts;
         let cleanDivision = String(rawDivision).normalize('NFKC').replace(/[\s　]+/g, "").toUpperCase();
+        
+        let cleanStartTime = "";
+        const timeMatch = rawStartTime.match(/(\d{1,2})[-:](\d{2})/);
+        if (timeMatch) {
+          cleanStartTime = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+        }
 
         let locData = null;
-
         if (selectedLocationId == '99') {
           document.getElementById('message').textContent = '位置情報取得中...';
           locData = await getLocation();
@@ -939,21 +774,19 @@ function startScanner() {
           bibNumber,
           runnerName,
           gender,
-          startTime,
+          qrStartTime: cleanStartTime,
           latitude: locData ? locData.lat : null,
           longitude: locData ? locData.lng : null,
-          
           scanTimestamp: firebase.firestore.Timestamp.fromDate(scanTimeObject),
           date: scanTimeObject.toLocaleDateString('ja-JP'),
           time: scanTimeObject.toLocaleTimeString('ja-JP'),
           staff,
           serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
         };
-
         showPopup(scanData); 
       } else {
         document.getElementById('message').textContent = '無効なQRコードです';
-        setTimeout(startScanner, 1000);
+        setTimeout(startScanner, 1500);
       }
     }
   }, { video: { facingMode: "environment" } });
@@ -961,127 +794,82 @@ function startScanner() {
 
 function showPopup(scanData) {
   const overlay = document.getElementById('popup-overlay');
-  const title = document.getElementById('popup-title');
-  const info = document.getElementById('popup-info');
+  document.getElementById('popup-title').textContent = "チェックOK";
+  document.getElementById('popup-title').style.color = "green";
+  document.getElementById('popup-info').innerHTML = `地点：${scanData.name}<br>部門：${scanData.division}<br>ゼッケン：${scanData.bibNumber}<br>氏名：${scanData.runnerName}`;
+
   const popup = document.getElementById('popup');
-
-  title.textContent = "チェックOK";
-  title.style.color = "green";
-
-  info.innerHTML = `
-    地点：${scanData.name}<br>
-    部門：${scanData.division}<br>
-    ゼッケン：${scanData.bibNumber}<br>
-    氏名：${scanData.runnerName}
-  `;
-
   popup.querySelectorAll('button').forEach(btn => btn.remove());
 
   const okBtn = document.createElement('button');
   okBtn.textContent = "OK";
-  okBtn.onclick = () => {
-    uploadToFirebase(scanData); 
-    continueScan(); 
+  
+  // 修正：保存中メッセージを表示し、保存完了後に再スタート
+  okBtn.onclick = async () => { 
+    document.getElementById('popup-overlay').style.display = 'none'; 
+    document.getElementById('message').textContent = '保存中...';
+    await uploadToFirebase(scanData); 
   };
   popup.appendChild(okBtn);
 
   const endBtn = document.createElement('button');
-  endBtn.textContent = "終了";
-  endBtn.onclick = endApp;
+  endBtn.textContent = "キャンセル";
+  endBtn.onclick = () => { 
+    document.getElementById('popup-overlay').style.display = 'none'; 
+    startScanner(); 
+  };
   popup.appendChild(endBtn);
-
   overlay.style.display = 'flex';
 }
 
-function continueScan() {
-  document.getElementById('popup-overlay').style.display = 'none';
-  startScanner(); 
-}
-
-function endApp() {
-  if (codeReader) {
-    codeReader.reset();
-  }
-  document.getElementById('popup-overlay').style.display = 'none';
-  document.getElementById('setup').style.display = '';
-  document.getElementById('reader').style.display = 'none';
-  document.getElementById('result').style.display = 'none';
-}
-
+// 修正：トランザクションを用いた完全な重複防止
 async function uploadToFirebase(data) {
-  if (!firestore) {
-    console.error("Firestore is not initialized.");
-    document.getElementById('message').textContent = 'DB未接続エラー'; 
-    return;
-  }
-
   const docId = `${data.id}_${data.bibNumber}`;
   const docRef = firestore.collection("scans_spring_2026").doc(docId);
-
   try {
-    let exists = false;
+    const isNew = await firestore.runTransaction(async (transaction) => {
+      const docSnap = await transaction.get(docRef);
+      if (docSnap.exists) {
+        return false; // すでに存在する場合は書き込まない
+      }
+      transaction.set(docRef, data);
+      return true;
+    });
 
-    try {
-      const docSnap = await docRef.get();
-      exists = docSnap.exists;
-    } catch (e) {
-      console.warn("重複チェックスキップ（オフラインまたはエラー）:", e);
-      exists = false;
+    if (!isNew) {
+      document.getElementById('message').textContent = `${data.bibNumber} は読取済`;
+    } else {
+      document.getElementById('message').textContent = `${data.bibNumber} 保存完了`;
+      // リタイヤ時の追加ブロードキャスト処理
+      if (String(data.id) === '99') {
+        firestore.collection('broadcast').doc('latest_retire').set({
+          bibNumber: data.bibNumber, runnerName: data.runnerName, locationName: data.name, time: data.time, staff: data.staff, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(err => console.error("Broadcast送信エラー:", err));
+      }
     }
-
-    if (exists) {
-      console.warn("Already exists:", docId);
-      document.getElementById('message').textContent = `${data.bibNumber} は読み取り済み`;
-      return; 
-    }
-
-    await docRef.set(data, { merge: true });
-    
-    console.log("Data saved (Offline/Online):", docId);
-    document.getElementById('message').textContent = `${data.bibNumber} 保存完了`;
-
-    if (String(data.id) === '99' || data.name.includes("リタイヤ") || data.name.includes("リタイア")) {
-      firestore.collection('broadcast').doc('latest_retire').set({
-        bibNumber: data.bibNumber,
-        runnerName: data.runnerName,
-        locationName: data.name,
-        time: data.time,
-        staff: data.staff,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      }).catch((err) => {
-        console.warn("速報送信保留:", err);
-      });
-    }
-
-  } catch (error) {
-    console.error("Save failed: ", error);
-    document.getElementById('message').textContent = `保存失敗: ${error.message}`;
+  } catch (error) { 
+    console.error("Firebase保存エラー:", error);
+    document.getElementById('message').textContent = `保存失敗`; 
+  } finally {
+    // 修正：結果を1.5秒見せてからスキャナー再開
+    setTimeout(startScanner, 1500);
   }
 }
-
 
 function showCustomPopup({ title = "", message = "", buttons = [], callback = null }) {
   const overlay = document.getElementById('popup-overlay');
   const popup = document.getElementById('popup');
-  const titleElem = document.getElementById('popup-title');
-  const infoElem = document.getElementById('popup-info');
-
-  titleElem.textContent = title;
-  titleElem.style.color = (title === "エラー" ? "red" : ""); 
-  infoElem.innerHTML = message;
+  document.getElementById('popup-title').textContent = title;
+  document.getElementById('popup-title').style.color = (title === "エラー" ? "red" : ""); 
+  document.getElementById('popup-info').innerHTML = message;
 
   popup.querySelectorAll('button').forEach(btn => btn.remove());
-
   buttons.forEach(({ text, value }) => {
     const btn = document.createElement('button');
     btn.textContent = text;
-    btn.onclick = () => {
-      overlay.style.display = 'none';
-      if (callback) callback(value);
-    };
+    btn.onclick = () => { overlay.style.display = 'none'; if (callback) callback(value); };
     popup.appendChild(btn);
   });
-
   overlay.style.display = 'flex';
 }
 
@@ -1089,90 +877,41 @@ let lastProcessedRetireTime = 0;
 const appStartTime = new Date().getTime() - (5 * 60 * 1000); 
 
 function startRetireListener() {
-  firestore.collection('broadcast').doc('latest_retire')
-    .onSnapshot((doc) => {
-      if (!doc.exists) return;
-      
-      const d = doc.data();
-      
-      let alertTime = 0;
-      if (!d.timestamp) {
-        alertTime = new Date().getTime();
-      } else {
-        alertTime = d.timestamp.toMillis();
-      }
-
-      const now = new Date().getTime();
-      const isRecent = alertTime > appStartTime;
-      const isWithin10Mins = (now - alertTime) < 10 * 60 * 1000; 
-      
-      if (isRecent && isWithin10Mins && alertTime > lastProcessedRetireTime) {
-        lastProcessedRetireTime = alertTime;
-        showRetireAlert(d);
-      }
-    }, (error) => {
-      console.error("速報受信エラー:", error);
-    });
-}
-
-function showRetireAlert(data) {
-  if (navigator.vibrate) {
-    navigator.vibrate([500, 200, 500, 200, 500]); 
-  }
-  showCustomPopup({
-    title: "⚠ リタイヤ速報",
-    message: `
-      <div style="text-align:center; margin: 10px 0;">
-        <span style="font-size:32px; color:red; font-weight:bold;">No.${data.bibNumber}</span><br>
-        <span style="font-size:24px; font-weight:bold;">${data.runnerName} さん</span>
-        <hr style="margin:10px 0;">
-        <div style="font-size:18px; color:#333;">
-          場所: <strong>${data.locationName}</strong><br>
-          担当: ${data.staff}<br>
-          <span style="font-size:14px; color:#888;">${data.time}</span>
-        </div>
-      </div>
-    `,
-    buttons: [{ text: "確認しました", value: true }]
-  });
+  firestore.collection('broadcast').doc('latest_retire').onSnapshot((doc) => {
+    if (!doc.exists) return;
+    const d = doc.data();
+    let alertTime = d.timestamp ? d.timestamp.toMillis() : new Date().getTime();
+    const now = new Date().getTime();
+    if (alertTime > appStartTime && (now - alertTime) < 10 * 60 * 1000 && alertTime > lastProcessedRetireTime) {
+      lastProcessedRetireTime = alertTime;
+      if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]); 
+      showCustomPopup({
+        title: "⚠ リタイヤ速報",
+        message: `<div style="text-align:center; margin: 10px 0;"><span style="font-size:32px; color:red; font-weight:bold;">No.${d.bibNumber}</span><br><span style="font-size:24px; font-weight:bold;">${d.runnerName} さん</span><hr style="margin:10px 0;"><div style="font-size:18px; color:#333;">場所: <strong>${d.locationName}</strong><br>担当: ${d.staff}<br><span style="font-size:14px; color:#888;">${d.time}</span></div></div>`,
+        buttons: [{ text: "確認しました", value: true }]
+      });
+    }
+  }, (error) => { console.error("速報リスナーエラー:", error); });
 }
 
 try {
   firebase.initializeApp(firebaseConfig);
   firestore = firebase.firestore();
-  
-  firestore.enablePersistence({ synchronizeTabs: true })
-    .catch((err) => {
-      if (err.code == 'failed-precondition') {
-        console.error("複数タブエラー:", err);
-        showCustomPopup({
-          title: "⚠ 警告",
-          message: `
-            <div style="text-align:left; font-size:18px;">
-              <strong>アプリが複数のタブで開かれています。</strong><br><br>
-              データの保存に失敗する恐れがあります。<br>
-              不要なタブを全て閉じてから、このページを<strong>再読み込み</strong>してください。
-            </div>
-          `,
-          buttons: [{ text: "再読み込み", value: true }],
-          callback: () => { window.location.reload(); }
-        });
-        document.getElementById('message').textContent = '⚠ 複数タブで起動中';
-        document.getElementById('message').style.color = 'red';
-      } else if (err.code == 'unimplemented') {
-        console.log('ブラウザがオフライン保存に対応していません');
-      }
-    });
-
-  setTimeout(() => {
-    initializeAppLogic();
-    startRetireListener(); 
-  }, 300);
-
+  firestore.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+    if (err.code == 'failed-precondition') {
+      showCustomPopup({
+        title: "⚠ 警告",
+        message: `<div style="text-align:left; font-size:18px;"><strong>複数タブ起動エラー</strong><br><br>不要なタブを全て閉じ、再読み込みしてください。</div>`,
+        buttons: [{ text: "再読み込み", value: true }],
+        callback: () => { window.location.reload(); }
+      });
+      document.getElementById('message').textContent = '⚠ 複数タブエラー';
+      document.getElementById('message').style.color = 'red';
+    }
+  });
+  setTimeout(() => { initializeAppLogic(); startRetireListener(); }, 300);
 } catch (e) {
-  console.error("Firebase initialization error:", e);
-  alert("データベースの初期化に失敗しました。");
-  initializeAppLogic();
+  alert("初期化失敗"); initializeAppLogic();
 }
 </script>
 </body>
