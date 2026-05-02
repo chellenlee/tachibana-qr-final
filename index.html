@@ -128,10 +128,11 @@
     <h3 style="margin: 0;">リアルタイム速報</h3>
     <button class="back-top-button" onclick="closeReport()">戻る</button>
   </div>
-  <div style="text-align: center; margin-bottom: 10px;">
-    <select id="report-division-select" onchange="updateReportView()" style="width: 90%; font-size: 18px;">
+  <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+    <select id="report-division-select" onchange="updateReportView()" style="width: 48%; font-size: 16px; margin: 0; padding: 8px;">
       <option value="">部門を選択...</option>
     </select>
+    <input type="text" id="report-search-input" onkeyup="updateReportView()" placeholder="No.や氏名で検索" style="width: 48%; font-size: 16px; margin: 0; padding: 8px;">
   </div>
   <div id="report-list">データ読込中...</div>
 </div>
@@ -459,10 +460,14 @@ function closeRunnerDetail() {
 }
 
 async function showReport() {
-  if (codeReader) codeReader.reset(); // 修正：カメラ解放
+  if (codeReader) codeReader.reset();
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('report-view').style.display = 'block';
+  
+  // 画面を開くたびに検索窓をリセットする
+  document.getElementById('report-search-input').value = '';
+  
   const listDiv = document.getElementById('report-list');
   listDiv.innerHTML = '全データを解析中...';
   const select = document.getElementById('report-division-select');
@@ -514,7 +519,7 @@ async function showReport() {
     
     select.innerHTML = '<option value="">部門を選択...</option>';
     sortedDivisions.forEach(div => { select.appendChild(new Option(div, div)); });
-    listDiv.innerHTML = '<p>上のボックスから部門を選択してください。</p>';
+    listDiv.innerHTML = '<p>部門を選択するか、No.や氏名で検索してください。</p>';
   } catch (error) {
     console.error("速報取得エラー:", error);
     listDiv.innerHTML = '<p style="color:red;">取得失敗</p>';
@@ -524,10 +529,35 @@ async function showReport() {
 function updateReportView() {
   const select = document.getElementById('report-division-select');
   const selectedDiv = select.value;
+  const searchInput = document.getElementById('report-search-input').value.trim().toLowerCase();
   const listDiv = document.getElementById('report-list');
-  if (!selectedDiv) { listDiv.innerHTML = '<p>部門を選択してください。</p>'; return; }
 
-  let filtered = allScanDataForReport.filter(d => d.division === selectedDiv);
+  // 部門も検索ワードも空の場合はメッセージを出して終了
+  if (!selectedDiv && !searchInput) { 
+    listDiv.innerHTML = '<p>部門を選択するか、No.や氏名で検索してください。</p>'; 
+    return; 
+  }
+
+  let filtered = allScanDataForReport;
+
+  // 部門が選択されていれば、その部門で絞り込み
+  if (selectedDiv) {
+    filtered = filtered.filter(d => d.division === selectedDiv);
+  }
+
+  // 検索ワードがあれば、No.または氏名（小文字区別なし）で部分一致検索
+  if (searchInput) {
+    filtered = filtered.filter(d => 
+      String(d.bibNumber).includes(searchInput) || 
+      String(d.runnerName).toLowerCase().includes(searchInput)
+    );
+  }
+
+  if (filtered.length === 0) {
+    listDiv.innerHTML = '<p>該当するランナーが見つかりません。</p>';
+    return;
+  }
+
   filtered.sort((a, b) => {
     if (b._locationIndex !== a._locationIndex) return b._locationIndex - a._locationIndex; 
     const tA = a.scanTimestamp ? a.scanTimestamp.toMillis() : 0;
@@ -614,7 +644,6 @@ async function showStats() {
         for (let i = 0; i <= r.maxIdx; i++) {
           if (statsMap[i]) {
             const loc = locations[i];
-            // ★修正1：その部門が通過する地点の時だけカウント（通過扱い）にする
             if (!loc.divisions || loc.divisions.includes(r.div)) {
               if (r.div !== 'other' && statsMap[i][r.div] !== undefined) statsMap[i][r.div]++;
               statsMap[i].total++;
@@ -623,7 +652,6 @@ async function showStats() {
         }
       }
       if (r.isRetire) {
-        // ★修正2：リタイヤした場合、その部門が「次に通過するはずだった有効な地点」を探してリタイヤ数を足す
         let nextLoc = -1;
         for (let i = r.maxIdx + 1; i < locations.length; i++) {
           const l = locations[i];
@@ -654,11 +682,14 @@ async function showStats() {
 
     const startLocIdx = locIndexMap["2"];
     
+    // みなし出走数（システムが認知しているユニークランナー数）を計算の母数にする
     const startCount = { E: 0, L: 0, M: 0, S: 0, total: 0 };
-    if (startLocIdx !== undefined) {
-      TARGET_DIVISIONS.forEach(div => { startCount[div] = statsMap[startLocIdx][div]; });
-      startCount.total = statsMap[startLocIdx].total;
-    }
+    Object.values(runnerStatus).forEach(r => {
+      if (r.div !== 'other' && startCount[r.div] !== undefined) {
+        startCount[r.div]++;
+      }
+      startCount.total++;
+    });
 
     let cumulativeRetire = { E: 0, L: 0, M: 0, S: 0, total: 0 };
 
@@ -674,15 +705,12 @@ async function showStats() {
 
       if (index >= startLocIdx) {
         TARGET_DIVISIONS.forEach(div => {
-          // ★修正3：その地点に該当部門が通過するかチェック
           const isValid = (!loc.divisions || loc.divisions.includes(div));
           if (isValid) {
             let unp = startCount[div] - statsMap[index][div] - cumulativeRetire[div];
             unpassedDiv[div] = unp < 0 ? 0 : unp;
-            // 通過する部門の未通過数だけを合計に足す
             unpassedTotal += unpassedDiv[div]; 
           } else {
-            // 通過しない部門は計算から除外し、0にする
             unpassedDiv[div] = 0; 
           }
         });
@@ -693,22 +721,24 @@ async function showStats() {
       TARGET_DIVISIONS.forEach(div => { 
         const isValid = (!loc.divisions || loc.divisions.includes(div));
         if (!isValid) {
-          // ★修正4：通過しない部門の「0」は、エラーっぽく見えないよう少しグレーにして表示
           html += `<td style="color:#aaa; font-weight:normal; white-space:nowrap;">0</td>`; 
         } else if (index === startLocIdx) {
-          html += `<td style="color:blue; font-weight:bold; white-space:nowrap;">${statsMap[index][div]}</td>`; 
+          // スタート地点の表示も「みなし出走数」を表示して矛盾をなくす
+          html += `<td style="color:blue; font-weight:bold; white-space:nowrap;">${startCount[div]}</td>`; 
         } else {
           html += `<td style="color:red; font-weight:bold; white-space:nowrap;">${unpassedDiv[div]}</td>`; 
         }
       });
       
-      html += `<td style="color:blue; font-weight:bold; white-space:nowrap;">${passedTotal}</td>`;
+      // スタート地点の「通過（計）」も「みなし出走数」にする
+      const displayPassedTotal = (index === startLocIdx) ? startCount.total : passedTotal;
+      html += `<td style="color:blue; font-weight:bold; white-space:nowrap;">${displayPassedTotal}</td>`;
       html += `<td style="color:red; font-weight:bold; white-space:nowrap;">${(index >= startLocIdx) ? unpassedTotal : '-'}</td>`;
       html += `<td style="color:black; font-weight:bold; white-space:nowrap;">${statsMap[index].retire > 0 ? '+' + statsMap[index].retire : 0}</td></tr>`;
     });
 
     html += '</table></div>';
-    html += '<p style="text-align:right; font-size:12px; color:#666;">※スタート地点は出走数(青字)、以降は未通過数(赤字)です。<br>未通過数 ＝ スタート数 － (通過数 ＋ 累計リタイヤ)</p>';
+    html += '<p style="text-align:right; font-size:12px; color:#666;">※スタート地点は出走数(青字)、以降は未通過数(赤字)です。<br>未通過数 ＝ 出走数 － (通過数 ＋ 累計リタイヤ)</p>';
     listDiv.innerHTML = html;
   } catch (error) {
     console.error("集計エラー:", error);
