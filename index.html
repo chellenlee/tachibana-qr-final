@@ -47,6 +47,18 @@
     .save-button:active, .start-button:active, .history-button:active, .stats-button:active, .report-button:active, .retire-button:active, .retire-list-button:active {
       box-shadow: 0 2px #444444; transform: translateY(3px);
     }
+    
+    /* ▼▼ここから追加（右上用のコンパクトな戻るボタン）▼▼ */
+    .back-top-button {
+      background: linear-gradient(#888888, #666666);
+      color: white; border: none; padding: 6px 16px; font-size: 16px;
+      border-radius: 6px; box-shadow: 0 3px #444444; cursor: pointer;
+      white-space: nowrap;
+    }
+    .back-top-button:active {
+      box-shadow: 0 1px #444444; transform: translateY(2px);
+    }
+    /* ▲▲ここまで追加▲▲ */
 
     .history-table, .stats-table, .report-table, .retire-table, .detail-table {
       width: 100%; border-collapse: collapse; margin-top: 10px; background: white; font-size: 13px;
@@ -95,45 +107,50 @@
 </div>
   
 <div id="history-view" style="display:none;">
-  <h3>読み取り履歴</h3>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <h3 style="margin: 0;">読み取り履歴</h3>
+    <button class="back-top-button" onclick="closeHistory()">戻る</button>
+  </div>
   <p style="font-size:16px; margin:0;">担当: <span id="history-staff-display" style="font-weight:bold;"></span></p>
   <div id="history-list">データ読込中...</div>
-  <br>
-  <button class="save-button" onclick="closeHistory()">戻る</button>
 </div>
 
 <div id="stats-view" style="display:none;">
-  <h3>通過状況一覧</h3>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <h3 style="margin: 0;">通過状況一覧</h3>
+    <button class="back-top-button" onclick="closeStats()">戻る</button>
+  </div>
   <div id="stats-list">集計中...</div>
-  <br>
-  <button class="save-button" onclick="closeStats()">戻る</button>
 </div>
 
 <div id="report-view" style="display:none;">
-  <h3>リアルタイム速報</h3>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <h3 style="margin: 0;">リアルタイム速報</h3>
+    <button class="back-top-button" onclick="closeReport()">戻る</button>
+  </div>
   <div style="text-align: center; margin-bottom: 10px;">
     <select id="report-division-select" onchange="updateReportView()" style="width: 90%; font-size: 18px;">
       <option value="">部門を選択...</option>
     </select>
   </div>
   <div id="report-list">データ読込中...</div>
-  <br>
-  <button class="save-button" onclick="closeReport()">戻る</button>
 </div>
 
 <div id="runner-detail-view" style="display:none;">
-  <h3 id="detail-runner-name" style="margin-bottom: 5px;"></h3>
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+    <h3 id="detail-runner-name" style="margin: 0;"></h3>
+    <button class="back-top-button" onclick="closeRunnerDetail()">戻る</button>
+  </div>
   <div id="detail-runner-info" style="font-size: 16px; font-weight: bold; margin-bottom: 15px;"></div>
   <div id="detail-list">データ読込中...</div>
-  <br>
-  <button class="save-button" onclick="closeRunnerDetail()">戻る</button>
 </div>
 
 <div id="retire-list-view" style="display:none;">
-  <h3>リタイヤ一覧</h3>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+    <h3 style="margin: 0;">リタイヤ一覧</h3>
+    <button class="back-top-button" onclick="closeRetireList()">戻る</button>
+  </div>
   <div id="retire-list-content">データ読込中...</div>
-  <br>
-  <button class="save-button" onclick="closeRetireList()">戻る</button>
 </div>
 
 <div id="reader" style="display:none;">
