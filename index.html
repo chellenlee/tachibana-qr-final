@@ -33,7 +33,6 @@
     #setup input, #setup select {
       text-align: left; text-indent: 2em; width: 80%; margin-bottom: 10px; font-size: 20px;
     }
-    /* 修正：iPad等での巨大化を防ぐ */
     video { width: 90vw; max-width: 500px; max-height: 50vh; margin-top: 10px; object-fit: cover; }
     input, select, button { padding: 12px; font-size: 20px; margin: 8px; }
     #message { font-size: 22px; font-weight: bold; color: green; margin: 15px; }
@@ -48,7 +47,6 @@
       box-shadow: 0 2px #444444; transform: translateY(3px);
     }
     
-    /* ▼▼ここから追加（右上用のコンパクトな戻るボタン）▼▼ */
     .back-top-button {
       background: linear-gradient(#888888, #666666);
       color: white; border: none; padding: 6px 16px; font-size: 16px;
@@ -58,7 +56,6 @@
     .back-top-button:active {
       box-shadow: 0 1px #444444; transform: translateY(2px);
     }
-    /* ▲▲ここまで追加▲▲ */
 
     .history-table, .stats-table, .report-table, .retire-table, .detail-table {
       width: 100%; border-collapse: collapse; margin-top: 10px; background: white; font-size: 13px;
@@ -226,7 +223,7 @@ async function initializeAppLogic() {
     });
     if (savedLocationId) locationSelect.value = savedLocationId;
   } catch (err) {
-    console.error("地点マスターの読み込みに失敗:", err); // 修正：エラーログ出力
+    console.error("地点マスターの読み込みに失敗:", err);
     locationSelect.innerHTML = '<option value="">読込エラー</option>';
   } finally {
     locationSelect.disabled = false;
@@ -271,7 +268,6 @@ function startRetireScan() {
   startScanner();
 }
 
-// 修正：スキャナの確実な終了
 function endApp() {
   if (codeReader) {
     codeReader.reset();
@@ -284,7 +280,6 @@ function endApp() {
 function getEffectiveStartTime(docs) {
   let startDoc = docs.find(d => String(d.id) === "2");
   
-  // ▼ 実績スタートあり：ユーザー指定の「1時間丸め処理」を適用
   if (startDoc && startDoc.scanTimestamp) {
     let sDate = startDoc.scanTimestamp.toDate();
     let startH = sDate.getHours();
@@ -295,10 +290,8 @@ function getEffectiveStartTime(docs) {
     return { time: roundedStart, isKari: false, label: `${String(startH).padStart(2, '0')}:00` };
   }
 
-  // ▼ 実績なし、QR仮時間あり：最初に読み取られた地点の日付 ＋ QRの時刻
   let anyDoc = docs[0];
   if (anyDoc && anyDoc.qrStartTime) {
-    // 最も古い読み取り記録を探す（これが「最初に読み取られた地点」）
     let earliestDoc = docs.reduce((prev, curr) => {
       let pt = prev.scanTimestamp ? prev.scanTimestamp.toMillis() : Infinity;
       let ct = curr.scanTimestamp ? curr.scanTimestamp.toMillis() : Infinity;
@@ -309,12 +302,9 @@ function getEffectiveStartTime(docs) {
       let baseDate = earliestDoc.scanTimestamp.toDate();
       let [qH, qM] = anyDoc.qrStartTime.split(':').map(Number);
       
-      // 読み取られた「日付」に、ゼッケンの「時刻」を付与
       let kariDate = new Date(baseDate);
       kariDate.setHours(qH, qM, 0, 0);
       
-      // ※深夜またぎ対策：QR時刻が「22:00」で、最初の読み取りが「翌朝02:00」だった場合、
-      // そのままくっつけると「翌日の22:00」になって未来の時間になるため、1日前に戻す
       if (kariDate > baseDate) { 
         kariDate.setDate(kariDate.getDate() - 1); 
       }
@@ -323,16 +313,23 @@ function getEffectiveStartTime(docs) {
     }
   }
   
-  // ▼ どちらも無い場合
   return { time: null, isKari: false, label: "Start無" };
 }
 
-function calculatePace(timeMs, distKm) {
-  if (distKm <= 0 || timeMs <= 0) return "-";
-  let paceMin = (timeMs / (1000 * 60)) / distKm;
-  let pMin = Math.floor(paceMin);
-  let pSec = Math.floor((paceMin - pMin) * 60);
-  // 幅を節約するため、末尾の "/km" を削除しました
+// 【完全修正版】画面の経過時間（HH:MM:SS）の文字列をそのまま使ってペースを計算
+function calculatePace(elapsedStr, distKm) {
+  if (distKm <= 0 || !elapsedStr || elapsedStr === "Err" || elapsedStr === "Start無" || elapsedStr === "--:--") return "-";
+  
+  let parts = elapsedStr.split(':');
+  if (parts.length !== 3) return "-";
+  
+  let mins = (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10) + (parseInt(parts[2], 10) / 60);
+  if (mins <= 0) return "-";
+  
+  let paceRaw = mins / distKm;
+  let pMin = Math.floor(paceRaw);
+  let pSec = Math.floor((paceRaw - pMin) * 60);
+  
   return `${pMin}'${String(pSec).padStart(2, '0')}"`;
 }
 
@@ -340,9 +337,7 @@ function formatElapsed(diffMs) {
   if (diffMs < 0) return "Err"; 
   const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
   const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  // 秒単位の計算を追加しました
   const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
-  // HH:MM:SS のフォーマットで出力します
   return `${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}:${String(diffSecs).padStart(2, '0')}`;
 }
 
@@ -408,11 +403,20 @@ async function showRunnerDetail(bib) {
         
         if (effStart.time) {
           elapsedStr = formatElapsed(ts - effStart.time.getTime());
-          totPaceStr = calculatePace(ts - effStart.time.getTime(), dist);
-          if (dist > prevDist) secPaceStr = calculatePace(ts - prevTimeMs, dist - prevDist);
+          
+          // 【修正】総合ペース：画面に表示される経過時間（文字列）をそのまま渡して計算
+          totPaceStr = calculatePace(elapsedStr, dist);
+          
+          if (dist > prevDist) {
+            // 【修正】区間ペース：区間経過時間を文字列化して渡す
+            let secElapsedStr = formatElapsed(ts - prevTimeMs);
+            secPaceStr = calculatePace(secElapsedStr, dist - prevDist);
+          }
         }
         prevDist = dist;
-        prevTimeMs = ts;
+        // 【修正】スタート地点(距離0)の実時間によるズレを防ぎ、常に丸め時間を基準にする
+        prevTimeMs = (dist === 0 && effStart.time) ? effStart.time.getTime() : ts;
+        
       } else {
         if (isDNF) {
           passTimeStr = "DNF";
@@ -424,8 +428,15 @@ async function showRunnerDetail(bib) {
           
           let estElapsed = etaMs - effStart.time.getTime();
           elapsedStr = formatElapsed(estElapsed);
-          totPaceStr = calculatePace(estElapsed, dist);
-          secPaceStr = calculatePace(etaMs - prevTimeMs, dist - prevDist);
+          
+          // 【修正】ETAの総合ペース
+          totPaceStr = calculatePace(elapsedStr, dist);
+          
+          if (dist > prevDist) {
+             // 【修正】ETAの区間ペース
+             let secElapsedStr = formatElapsed(etaMs - prevTimeMs);
+             secPaceStr = calculatePace(secElapsedStr, dist - prevDist);
+          }
           
           prevDist = dist;
           prevTimeMs = etaMs;
@@ -449,7 +460,7 @@ async function showRunnerDetail(bib) {
     document.getElementById('detail-list').innerHTML = html;
 
   } catch(e) {
-    console.error("詳細情報取得エラー:", e); // 修正
+    console.error("詳細情報取得エラー:", e);
     document.getElementById('detail-list').innerHTML = '<p style="color:red;">データ取得失敗</p>';
   }
 }
@@ -465,7 +476,6 @@ async function showReport() {
   document.getElementById('reader').style.display = 'none';
   document.getElementById('report-view').style.display = 'block';
   
-  // 画面を開くたびに検索窓をリセットする
   document.getElementById('report-search-input').value = '';
   
   const listDiv = document.getElementById('report-list');
@@ -532,7 +542,6 @@ function updateReportView() {
   const searchInput = document.getElementById('report-search-input').value.trim().toLowerCase();
   const listDiv = document.getElementById('report-list');
 
-  // 部門も検索ワードも空の場合はメッセージを出して終了
   if (!selectedDiv && !searchInput) { 
     listDiv.innerHTML = '<p>部門を選択するか、No.や氏名で検索してください。</p>'; 
     return; 
@@ -540,12 +549,10 @@ function updateReportView() {
 
   let filtered = allScanDataForReport;
 
-  // 部門が選択されていれば、その部門で絞り込み
   if (selectedDiv) {
     filtered = filtered.filter(d => d.division === selectedDiv);
   }
 
-  // 検索ワードがあれば、No.または氏名（小文字区別なし）で部分一致検索
   if (searchInput) {
     filtered = filtered.filter(d => 
       String(d.bibNumber).includes(searchInput) || 
@@ -607,7 +614,7 @@ function closeReport() {
 }
 
 async function showStats() {
-  if (codeReader) codeReader.reset(); // カメラ解放
+  if (codeReader) codeReader.reset();
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('stats-view').style.display = 'block';
@@ -682,7 +689,6 @@ async function showStats() {
 
     const startLocIdx = locIndexMap["2"];
     
-    // みなし出走数（システムが認知しているユニークランナー数）を計算の母数にする
     const startCount = { E: 0, L: 0, M: 0, S: 0, total: 0 };
     Object.values(runnerStatus).forEach(r => {
       if (r.div !== 'other' && startCount[r.div] !== undefined) {
@@ -723,14 +729,12 @@ async function showStats() {
         if (!isValid) {
           html += `<td style="color:#aaa; font-weight:normal; white-space:nowrap;">0</td>`; 
         } else if (index === startLocIdx) {
-          // スタート地点の表示も「みなし出走数」を表示して矛盾をなくす
           html += `<td style="color:blue; font-weight:bold; white-space:nowrap;">${startCount[div]}</td>`; 
         } else {
           html += `<td style="color:red; font-weight:bold; white-space:nowrap;">${unpassedDiv[div]}</td>`; 
         }
       });
       
-      // スタート地点の「通過（計）」も「みなし出走数」にする
       const displayPassedTotal = (index === startLocIdx) ? startCount.total : passedTotal;
       html += `<td style="color:blue; font-weight:bold; white-space:nowrap;">${displayPassedTotal}</td>`;
       html += `<td style="color:red; font-weight:bold; white-space:nowrap;">${(index >= startLocIdx) ? unpassedTotal : '-'}</td>`;
@@ -755,7 +759,7 @@ async function showHistory() {
   const staffInput = document.getElementById('staffName').value.trim();
   if (!staffInput) { showCustomPopup({ title: "確認", message: "履歴を表示するには担当者名を入力してください。", buttons: [{ text: "OK", value: true }] }); return; }
   
-  if (codeReader) codeReader.reset(); // 修正：カメラ解放
+  if (codeReader) codeReader.reset();
 
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none'; 
@@ -795,7 +799,7 @@ function closeHistory() {
 }
 
 async function showRetireList() {
-  if (codeReader) codeReader.reset(); // 修正：カメラ解放
+  if (codeReader) codeReader.reset(); 
   document.getElementById('setup').style.display = 'none';
   document.getElementById('reader').style.display = 'none';
   document.getElementById('retire-list-view').style.display = 'block';
@@ -877,7 +881,6 @@ function startScanner() {
       codeReader.reset(); 
       const parts = result.text.trim().split('/');
       
-      // 修正：必須項目の厳密なバリデーション
       if (parts.length >= 4 && parts[1] && parts[2]) {
         const [rawDivision, bibNumber, runnerName, gender, rawStartTime = ''] = parts;
         let cleanDivision = String(rawDivision).normalize('NFKC').replace(/[\s　]+/g, "").toUpperCase();
@@ -934,7 +937,6 @@ function showPopup(scanData) {
   const okBtn = document.createElement('button');
   okBtn.textContent = "OK";
   
-  // 修正：保存中メッセージを表示し、保存完了後に再スタート
   okBtn.onclick = async () => { 
     document.getElementById('popup-overlay').style.display = 'none'; 
     document.getElementById('message').textContent = '保存中...';
@@ -952,7 +954,6 @@ function showPopup(scanData) {
   overlay.style.display = 'flex';
 }
 
-// 修正：トランザクションを用いた完全な重複防止
 async function uploadToFirebase(data) {
   const docId = `${data.id}_${data.bibNumber}`;
   const docRef = firestore.collection("scans_spring_2026").doc(docId);
@@ -960,7 +961,7 @@ async function uploadToFirebase(data) {
     const isNew = await firestore.runTransaction(async (transaction) => {
       const docSnap = await transaction.get(docRef);
       if (docSnap.exists) {
-        return false; // すでに存在する場合は書き込まない
+        return false; 
       }
       transaction.set(docRef, data);
       return true;
@@ -970,7 +971,6 @@ async function uploadToFirebase(data) {
       document.getElementById('message').textContent = `${data.bibNumber} は読取済`;
     } else {
       document.getElementById('message').textContent = `${data.bibNumber} 保存完了`;
-      // リタイヤ時の追加ブロードキャスト処理
       if (String(data.id) === '99') {
         firestore.collection('broadcast').doc('latest_retire').set({
           bibNumber: data.bibNumber, runnerName: data.runnerName, locationName: data.name, time: data.time, staff: data.staff, timestamp: firebase.firestore.FieldValue.serverTimestamp()
@@ -981,7 +981,6 @@ async function uploadToFirebase(data) {
     console.error("Firebase保存エラー:", error);
     document.getElementById('message').textContent = `保存失敗`; 
   } finally {
-    // 修正：結果を1.5秒見せてからスキャナー再開
     setTimeout(startScanner, 1500);
   }
 }
