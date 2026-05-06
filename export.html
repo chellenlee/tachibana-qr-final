@@ -21,7 +21,7 @@
 <body>
 
   <h1>橘湾岸ＱＲ2026春 - Excelリザルト出力</h1>
-  <p>全データを解析し、自動計算関数（RANK等）を完全に連動させたExcelファイル(.xlsx)を出力します。</p>
+  <p>全データを解析し、各部門を別々のシートに分けたExcelファイル(.xlsx)を出力します。</p>
   
   <button id="dl-btn" onclick="generateExcel()">📊 Excelファイルを作成してダウンロード</button>
   
@@ -168,7 +168,6 @@
             elapsedMs = goalTimeMs - effStart.time.getTime();
           }
           
-          // 性別データの表記ゆれをExcel関数用に統一
           let rawGender = firstDoc.gender || "";
           let genderExcel = rawGender;
           if(rawGender === "M" || rawGender === "male" || rawGender === "男子") genderExcel = "男";
@@ -200,45 +199,35 @@
           let waypoints = waypointsDict[div] || [];
           let excelData = [];
           
-          // ヘッダー行に「ｽﾀｰﾄ備考」を追加し、スタート列と分離
-          let headerRow = ["総合順位", "男子順位", "女子順位", "ゼッケン", "氏名", "性別", "スタート時間", "ｽﾀｰﾄ備考"];
+          // ヘッダー行から順位3列を削除
+          let headerRow = ["ゼッケン", "氏名", "性別", "スタート時間", "ｽﾀｰﾄ備考"];
           waypoints.forEach(wp => { headerRow.push(wp.name); });
           headerRow.push("ゴール", "経過時間");
           excelData.push(headerRow);
           
-          let startCol = "G"; // スタート時間はG列
-          let genderCol = "F"; // 性別はF列
+          let startCol = "D"; // スタート時間はD列に変更
           let goalColIndex = headerRow.length - 2; 
           let goalCol = getColLetter(goalColIndex);
-          let timeColIndex = headerRow.length - 1; 
-          let timeCol = getColLetter(timeColIndex); 
           let lastRow = divRunners.length + 1; 
           
           divRunners.forEach((r, index) => {
             let rowNum = index + 2; 
 
-            // 関数埋め込み
-            let f_overall = `IF(ISTEXT(${timeCol}${rowNum}), "-", RANK(${timeCol}${rowNum}, ${timeCol}$2:${timeCol}$${lastRow}, 1))`;
-            let f_male = `IF(OR(ISTEXT(${timeCol}${rowNum}), ${genderCol}${rowNum}<>"男"), "-", COUNTIFS(${genderCol}$2:${genderCol}$${lastRow}, "男", ${timeCol}$2:${timeCol}$${lastRow}, "<"&${timeCol}${rowNum}) + 1)`;
-            let f_female = `IF(OR(ISTEXT(${timeCol}${rowNum}), ${genderCol}${rowNum}<>"女"), "-", COUNTIFS(${genderCol}$2:${genderCol}$${lastRow}, "女", ${timeCol}$2:${timeCol}$${lastRow}, "<"&${timeCol}${rowNum}) + 1)`;
-
+            // 行データ作成
             let row = [
-              { f: f_overall },
-              { f: f_male },
-              { f: f_female },
               r.bib,
               r.name,
               r.gender
             ];
 
-            // G列：スタート時間 (引き算ができるようシリアル値で配置)
+            // D列：スタート時間 (引き算ができるようシリアル値で配置)
             if (r.effStart && r.effStart.time) {
               row.push({ t: 'd', v: r.effStart.time, z: 'm/d h:mm:ss' });
             } else {
               row.push({ t: 's', v: "" });
             }
             
-            // H列：スタート備考（「(仮)」の文字などはここに隔離）
+            // E列：スタート備考（「(仮)」の文字などはここに隔離）
             row.push({ t: 's', v: (r.effStart && r.effStart.isKari) ? "(仮)" : "" });
 
             // 各地点の通過時間
@@ -282,4 +271,3 @@
   </script>
 </body>
 </html>
-
