@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>橘湾岸ＱＲ2026春 - 全データCSV出力</title>
+  <style>
+    body { font-family: sans-serif; padding: 30px; background: #f0f4f8; color: #333; text-align: center; }
+    h1 { color: #003366; }
+    p { font-size: 16px; margin-bottom: 30px; color: #555; }
+    #dl-btn { 
+      background: linear-gradient(#4a90e2, #003366); color: white; padding: 15px 30px; 
+      border: none; border-radius: 8px; font-size: 20px; font-weight: bold; cursor: pointer; 
+      box-shadow: 0 5px 10px rgba(0,0,0,0.2); transition: 0.2s;
+    }
+    #dl-btn:hover { background: linear-gradient(#357abd, #002244); transform: translateY(-2px); }
+    #dl-btn:active { transform: translateY(2px); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+    #status { margin-top: 20px; font-size: 18px; font-weight: bold; color: #003366; }
+  </style>
+</head>
+<body>
+
+  <h1>橘湾岸ＱＲ2026春 - 全読取データCSV出力</h1>
+  <p>データベースに記録されているすべてのスキャン履歴（生データ）を、読み取り日時の古い順に出力します。</p>
+  
+  <button id="dl-btn" onclick="generateRawCSV()">📥 全データ(CSV)をダウンロード</button>
+  
+  <div id="status"></div>
+
+  <!-- Firebase Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  
+  <script>
+    // ※アプリと同じFirebaseの設定を記述してください
+    const firebaseConfig = {
+      apiKey: "AIzaSyD_Aic5iQ7OYGO9qTv0patspCKbwsuYcs8",
+      authDomain: "tachibana-wangan.firebaseapp.com",
+      projectId: "tachibana-wangan",
+      storageBucket: "tachibana-wangan.firebasestorage.app",
+      messagingSenderId: "963128842192",
+      appId: "1:963128842192:web:5ee0eb05d3df5e7c63cbd5"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const firestore = firebase.firestore();
+
+    function escapeCSV(val) {
+      if (val === null || val === undefined) return '""';
+      return '"' + String(val).replace(/"/g, '""') + '"';
+    }
+
+    async function generateRawCSV() {
+      const statusDiv = document.getElementById('status');
+      statusDiv.innerHTML = '📥 データを取得中... しばらくお待ちください。';
+      statusDiv.style.color = '#003366';
+      
+      try {
+        const scanSnap = await firestore.collection('scans_spring_2026').get();
+        if (scanSnap.empty) {
+          statusDiv.innerHTML = '❌ データが見つかりませんでした。';
+          statusDiv.style.color = 'red';
+          return;
+        }
+        
+        let allScans = [];
+        scanSnap.forEach(doc => {
+          allScans.push(doc.data());
+        });
+
+        // 読み取り日時の古い順（昇順）に並べ替え
+        allScans.sort((a, b) => {
+          const tA = a.scanTimestamp ? a.scanTimestamp.toMillis() : 0;
+          const tB = b.scanTimestamp ? b.scanTimestamp.toMillis() : 0;
+          return tA - tB;
+        });
+
+        // CSVヘッダー
+        const headers = [
+          "部門", "ゼッケン", "氏名", "性別", "地点ID", "地点名", 
+          "読取日付", "読取時刻", "担当スタッフ", "QR設定開始時間", "緯度", "経度"
+        ];
+        
+        let csvRows = [];
+        csvRows.push(headers.map(escapeCSV).join(','));
+
+        // データ行の作成
+        allScans.forEach(d => {
+          const row = [
+            d.division,
+            d.bibNumber,
+            d.runnerName,
+            d.gender,
+            d.id,
+            d.name,
+            d.date,
+            d.time,
+            d.staff,
+            d.qrStartTime,
+            d.latitude,
+            d.longitude
+          ];
+          csvRows.push(row.map(escapeCSV).join(','));
+        });
+
+        const csvString = csvRows.join('\n');
+
+        // Excel対策のBOM付与
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const blob = new Blob([bom, csvString], { type: 'text/csv;charset=utf-8;' });
+
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "橘湾岸QR_全読取データ.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        statusDiv.innerHTML = `✅ ${allScans.length}件のデータのダウンロードが完了しました！`;
+        statusDiv.style.color = 'green';
+        
+      } catch (error) {
+        console.error("データ取得エラー", error);
+        statusDiv.innerHTML = '❌ エラーが発生しました。コンソールを確認してください。';
+        statusDiv.style.color = 'red';
+      }
+    }
+  </script>
+</body>
+</html>
