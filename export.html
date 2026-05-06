@@ -21,7 +21,7 @@
 <body>
 
   <h1>橘湾岸ＱＲ2026春 - Excelリザルト出力</h1>
-  <p>全データを解析し、各部門を別々のシートに分けたExcelファイル(.xlsx)を出力します。</p>
+  <p>全データを解析し、自動計算関数（RANK等）を埋め込んだExcelファイル(.xlsx)を出力します。</p>
   
   <button id="dl-btn" onclick="generateExcel()">📊 Excelファイルを作成してダウンロード</button>
   
@@ -87,12 +87,14 @@
       return `${D}日 ${h}:${m}:${s}`;
     }
 
-    function formatElapsed(diffMs) {
-      if (diffMs < 0) return "Err"; 
-      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-      const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
-      return `${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}:${String(diffSecs).padStart(2, '0')}`;
+    // 列番号(0,1,2...)をExcelの列アルファベット(A,B,C...)に変換する関数
+    function getColLetter(index) {
+      let letter = '';
+      while (index >= 0) {
+        letter = String.fromCharCode((index % 26) + 65) + letter;
+        index = Math.floor(index / 26) - 1;
+      }
+      return letter;
     }
 
     async function generateExcel() {
@@ -140,9 +142,7 @@
           const division = firstDoc.division;
           if (!targetDivisions.includes(division)) return; 
           
-          const gender = firstDoc.gender || "不明";
           let effStart = getEffectiveStartTime(docs);
-          
           let isRetire = docs.some(d => String(d.id) === "99");
           let maxLocIndex = -1;
           let maxLocTimeMs = 0;
@@ -173,35 +173,38 @@
           
           let isFinisher = false;
           let elapsedMs = 0;
-          let elapsedStr = "DNF";
+          let isDNF = true;
           
           if (goalTimeMs && !isRetire && effStart.time) {
             isFinisher = true;
+            isDNF = false;
             elapsedMs = goalTimeMs - effStart.time.getTime();
-            elapsedStr = formatElapsed(elapsedMs);
           }
           
           let startStr = effStart.time ? formatTime(effStart.time) : "Start無";
           if (effStart.isKari) startStr += "(仮)";
           
+          // 性別データの表記ゆれをExcel用の数式で使いやすいよう「男」「女」に統一
+          let rawGender = firstDoc.gender || "";
+          let genderExcel = rawGender;
+          if(rawGender === "M" || rawGender === "male" || rawGender === "男子") genderExcel = "男";
+          if(rawGender === "F" || rawGender === "female" || rawGender === "女子") genderExcel = "女";
+
           runnersList.push({
-            bib: bib, name: firstDoc.runnerName, division: division, gender: gender,
+            bib: bib, name: firstDoc.runnerName, division: division, gender: genderExcel,
             startStr: startStr, locTimes: locTimes, goalTimeObj: goalTimeObj,
-            isFinisher: isFinisher, elapsedMs: elapsedMs, elapsedStr: elapsedStr,
+            isFinisher: isFinisher, isDNF: isDNF, elapsedMs: elapsedMs,
             maxLocIndex: maxLocIndex, maxLocTimeMs: maxLocTimeMs
           });
         });
         
-        // Excelワークブックの新規作成
         const wb = XLSX.utils.book_new();
         
         targetDivisions.forEach(div => {
           let divRunners = runnersList.filter(r => r.division === div);
           if (divRunners.length === 0) return;
           
-          // 【高度なソート】
-          // 1. 完走者を優先し、経過時間が短い順
-          // 2. DNFの場合は到達した最も遠い地点順 -> 同地点なら到着時間が早い順
+          // 初期の並び順（完走者を上に、DNFは進んだ距離が長い順に下へ）
           divRunners.sort((a, b) => {
             if (a.isFinisher && !b.isFinisher) return -1; 
             if (!a.isFinisher && b.isFinisher) return 1;
@@ -210,39 +213,63 @@
             return a.maxLocTimeMs - b.maxLocTimeMs; 
           });
           
-          let genderCount = {};
-          divRunners.forEach((r, index) => {
-            r.overallRank = index + 1; 
-            if (!genderCount[r.gender]) genderCount[r.gender] = 1;
-            r.genderRank = genderCount[r.gender]++; 
-          });
-          
           let waypoints = waypointsDict[div] || [];
           let excelData = [];
           
-          // ヘッダー行
-          let headerRow = ["総合順位", "男女別順位", "ゼッケン", "氏名", "性別", "スタート時間"];
+          // 【ヘッダー行の作成】
+          let headerRow = ["総合順位", "男子順位", "女子順位", "ゼッケン", "氏名", "性別", "スタート時間"];
           waypoints.forEach(wp => { headerRow.push(wp.name); });
           headerRow.push("ゴール", "経過時間");
           excelData.push(headerRow);
           
-          // データ行
-          divRunners.forEach(r => {
-            let row = [r.overallRank, r.genderRank, r.bib, r.name, r.gender, r.startStr];
+          // 列の位置を自動計算
+          let genderCol = "F"; // 性別はF列固定
+          let timeColIndex = headerRow.length - 1; // 経過時間は一番最後の列
+          let timeCol = getColLetter(timeColIndex); // "S"や"Z"などのアルファベットを取得
+          let lastRow = divRunners.length + 1; // ヘッダーが1行目なのでデータ末尾の行数
+          
+          // 【データ行の作成（関数の埋め込み）】
+          divRunners.forEach((r, index) => {
+            let rowNum = index + 2; // 現在の行番号（2行目からスタート）
+
+            // Excelに埋め込むための高度な順位計算式
+            let f_overall = `IF(ISTEXT(${timeCol}${rowNum}), "-", RANK(${timeCol}${rowNum}, ${timeCol}$2:${timeCol}$${lastRow}, 1))`;
+            let f_male = `IF(OR(ISTEXT(${timeCol}${rowNum}), ${genderCol}${rowNum}<>"男"), "-", COUNTIFS(${genderCol}$2:${genderCol}$${lastRow}, "男", ${timeCol}$2:${timeCol}$${lastRow}, "<"&${timeCol}${rowNum}) + 1)`;
+            let f_female = `IF(OR(ISTEXT(${timeCol}${rowNum}), ${genderCol}${rowNum}<>"女"), "-", COUNTIFS(${genderCol}$2:${genderCol}$${lastRow}, "女", ${timeCol}$2:${timeCol}$${lastRow}, "<"&${timeCol}${rowNum}) + 1)`;
+
+            let row = [
+              { t: 'n', f: f_overall }, // A列: 総合順位 (RANK関数)
+              { t: 'n', f: f_male },    // B列: 男子順位 (COUNTIFS関数)
+              { t: 'n', f: f_female },  // C列: 女子順位 (COUNTIFS関数)
+              r.bib,
+              r.name,
+              r.gender,
+              r.startStr
+            ];
+
+            // 各地点の通過時間
             waypoints.forEach(wp => {
               row.push(r.locTimes[wp.id] ? formatTime(r.locTimes[wp.id]) : "");
             });
             row.push(r.goalTimeObj ? formatTime(r.goalTimeObj) : "");
-            row.push(r.elapsedStr);
+
+            // 経過時間（計算可能にするため、文字列ではなく「シリアル値(数値)」で出力）
+            if (r.isDNF) {
+              row.push({ t: 's', v: 'DNF' });
+            } else {
+              let timeValue = r.elapsedMs / (1000 * 60 * 60 * 24); // Excelの「1日=1」の数値に変換
+              row.push({ t: 'n', v: timeValue, z: '[h]:mm:ss' }); // Excel上で 01:23:45 と表示させる
+            }
+
             excelData.push(row);
           });
           
-          // 2次元配列をワークシートに変換してブックに追加（シート名は部門名）
+          // シート作成と追加
           const ws = XLSX.utils.aoa_to_sheet(excelData);
           XLSX.utils.book_append_sheet(wb, ws, `${div}部門`);
         });
         
-        // Excelファイル(.xlsx)として書き出し
+        // xlsxの生成とダウンロード
         XLSX.writeFile(wb, "橘湾岸QR_リザルト.xlsx");
         
         statusDiv.innerHTML = '✅ Excelファイルのダウンロードが完了しました！';
