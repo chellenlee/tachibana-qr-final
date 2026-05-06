@@ -76,7 +76,6 @@
       return { time: null, isKari: false };
     }
 
-    // 列番号(0,1,2...)をExcelの列アルファベット(A,B,C...)に変換する関数
     function getColLetter(index) {
       let letter = '';
       while (index >= 0) {
@@ -118,7 +117,10 @@
         
         targetDivisions.forEach(div => {
           let locsForDiv = locations.filter(l => l.divisions && l.divisions.includes(div) && String(l.id) !== "1" && String(l.id) !== "99");
-          locsForDiv.sort((a, b) => (a.distances[div] || 0) - (b.distances[div] || 0)); 
+          
+          // 距離が未設定の場合に備え、IDの「数字の小さい順」で強制的に並べる
+          locsForDiv.sort((a, b) => Number(a.id) - Number(b.id));
+          
           deptLocs[div] = locsForDiv;
           goalLocations[div] = locsForDiv[locsForDiv.length - 1]; 
           waypointsDict[div] = locsForDiv.filter(l => String(l.id) !== "2" && String(l.id) !== String(goalLocations[div].id));
@@ -132,7 +134,12 @@
           if (!targetDivisions.includes(division)) return; 
           
           let effStart = getEffectiveStartTime(docs);
-          let isRetire = docs.some(d => String(d.id) === "99");
+          
+          // ★リタイヤの情報を完全に抽出
+          let retireScan = docs.find(d => String(d.id) === "99");
+          let isRetire = !!retireScan;
+          let retireTimeObj = (retireScan && retireScan.scanTimestamp) ? retireScan.scanTimestamp.toDate() : null;
+          
           let maxLocIndex = -1;
           let maxLocTimeMs = 0;
           let goalTimeMs = null;
@@ -177,7 +184,7 @@
             bib: bib, name: firstDoc.runnerName, division: division, gender: genderExcel,
             effStart: effStart, locTimes: locTimes, goalTimeObj: goalTimeObj,
             isFinisher: isFinisher, elapsedMs: elapsedMs,
-            isRetire: isRetire, // リタイヤフラグを追加
+            isRetire: isRetire, retireTimeObj: retireTimeObj, // 追加
             maxLocIndex: maxLocIndex, maxLocTimeMs: maxLocTimeMs
           });
         });
@@ -188,7 +195,7 @@
           let divRunners = runnersList.filter(r => r.division === div);
           if (divRunners.length === 0) return;
           
-          // 初回の出力順（完走者を上、DNFを到達距離順で下に並べる）
+          // ソート（完走者を上、DNF等は到達距離順・到着時間順）
           divRunners.sort((a, b) => {
             if (a.isFinisher && !b.isFinisher) return -1; 
             if (!a.isFinisher && b.isFinisher) return 1;
@@ -200,37 +207,36 @@
           let waypoints = waypointsDict[div] || [];
           let excelData = [];
           
-          // ヘッダー行の一番右に「備考」を追加
+          // 【ヘッダー行】リタイヤ時刻を追加
           let headerRow = ["ゼッケン", "氏名", "性別", "スタート時間", "ｽﾀｰﾄ備考"];
           waypoints.forEach(wp => { headerRow.push(wp.name); });
-          headerRow.push("ゴール", "経過時間", "備考");
+          headerRow.push("ゴール", "経過時間", "リタイヤ時刻", "備考");
           excelData.push(headerRow);
           
-          let startCol = "D"; // スタート時間はD列
-          let goalColIndex = headerRow.length - 3; // 「ゴール」列のインデックス
+          let startCol = "D";
+          let goalColIndex = headerRow.length - 4; // ゴール列の位置を再計算
           let goalCol = getColLetter(goalColIndex);
           
-          divRunners.forEach((r, index) => {
-            let rowNum = index + 2; 
+          divRunners.forEach((r) => {
+            // Excelの行番号（ヘッダーがあるので +2 ）
+            let rowNum = excelData.length + 1;
 
-            // 行データ作成
             let row = [
               r.bib,
               r.name,
               r.gender
             ];
 
-            // D列：スタート時間 (引き算ができるようシリアル値で配置)
+            // スタート時間 (計算用シリアル値)
             if (r.effStart && r.effStart.time) {
               row.push({ t: 'd', v: r.effStart.time, z: 'm/d h:mm:ss' });
             } else {
               row.push({ t: 's', v: "" });
             }
             
-            // E列：スタート備考（「(仮)」の文字などはここに隔離）
             row.push({ t: 's', v: (r.effStart && r.effStart.isKari) ? "(仮)" : "" });
 
-            // 各地点の通過時間
+            // 中間地点
             waypoints.forEach(wp => {
               if (r.locTimes[wp.id]) {
                 row.push({ t: 'd', v: r.locTimes[wp.id], z: 'm/d h:mm:ss' });
@@ -239,19 +245,26 @@
               }
             });
 
-            // ゴール時間
+            // ゴール
             if (r.goalTimeObj) {
               row.push({ t: 'd', v: r.goalTimeObj, z: 'm/d h:mm:ss' });
             } else {
               row.push({ t: 's', v: "" });
             }
 
-            // 経過時間を「関数」として埋め込む（ゴールー時間 引く スタート時間）
+            // 経過時間 (Excel関数)
             let f_elapsed = `IF(AND(ISNUMBER(${goalCol}${rowNum}), ISNUMBER(${startCol}${rowNum})), ${goalCol}${rowNum}-${startCol}${rowNum}, "DNF")`;
             row.push({ f: f_elapsed, z: '[h]:mm:ss' });
 
-            // 最終列：リタイヤ表示
-            row.push(r.isRetire ? "リタイヤ" : "");
+            // ★リタイヤ時刻
+            if (r.retireTimeObj) {
+              row.push({ t: 'd', v: r.retireTimeObj, z: 'm/d h:mm:ss' });
+            } else {
+              row.push({ t: 's', v: "" });
+            }
+
+            // ★備考（1番右に「リタイヤ」と表記）
+            row.push({ t: 's', v: r.isRetire ? "リタイヤ" : "" });
 
             excelData.push(row);
           });
