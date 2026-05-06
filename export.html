@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>橘湾岸ＱＲ2026春 - Excelリザルト出力</title>
+  <style>
+    body { font-family: sans-serif; padding: 30px; background: #f0f4f8; color: #333; text-align: center; }
+    h1 { color: #003366; }
+    p { font-size: 16px; margin-bottom: 30px; color: #555; }
+    #dl-btn { 
+      background: linear-gradient(#28a745, #1e7e34); color: white; padding: 15px 30px; 
+      border: none; border-radius: 8px; font-size: 20px; font-weight: bold; cursor: pointer; 
+      box-shadow: 0 5px 10px rgba(0,0,0,0.2); transition: 0.2s;
+    }
+    #dl-btn:hover { background: linear-gradient(#218838, #19692c); transform: translateY(-2px); }
+    #dl-btn:active { transform: translateY(2px); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+    #status { margin-top: 20px; font-size: 18px; font-weight: bold; color: #003366; }
+  </style>
+</head>
+<body>
+
+  <h1>橘湾岸ＱＲ2026春 - Excelリザルト出力</h1>
+  <p>全データを解析し、各部門を別々のシートに分けたExcelファイル(.xlsx)を出力します。</p>
+  
+  <button id="dl-btn" onclick="generateExcel()">📊 Excelファイルを作成してダウンロード</button>
+  
+  <div id="status"></div>
+
+  <!-- Firebase Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <!-- 本物のExcel(.xlsx)を生成するためのライブラリ -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+  
+  <script>
+    // ※アプリと同じFirebaseの設定を記述してください
+    const firebaseConfig = {
+      apiKey: "AIzaSyD_Aic5iQ7OYGO9qTv0patspCKbwsuYcs8",
+      authDomain: "tachibana-wangan.firebaseapp.com",
+      projectId: "tachibana-wangan",
+      storageBucket: "tachibana-wangan.firebasestorage.app",
+      messagingSenderId: "963128842192",
+      appId: "1:963128842192:web:5ee0eb05d3df5e7c63cbd5"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const firestore = firebase.firestore();
+
+    function getEffectiveStartTime(docs) {
+      let startDoc = docs.find(d => String(d.id) === "2");
+      if (startDoc && startDoc.scanTimestamp) {
+        let sDate = startDoc.scanTimestamp.toDate();
+        let startH = sDate.getHours();
+        let startM = sDate.getMinutes();
+        if (startM >= 11) startH += 1;
+        let roundedStart = new Date(sDate);
+        roundedStart.setHours(startH, 0, 0, 0);
+        return { time: roundedStart, isKari: false, label: `${String(startH).padStart(2, '0')}:00` };
+      }
+      let anyDoc = docs[0];
+      if (anyDoc && anyDoc.qrStartTime) {
+        let earliestDoc = docs.reduce((prev, curr) => {
+          let pt = prev.scanTimestamp ? prev.scanTimestamp.toMillis() : Infinity;
+          let ct = curr.scanTimestamp ? curr.scanTimestamp.toMillis() : Infinity;
+          return pt < ct ? prev : curr;
+        }, docs[0]);
+        if (earliestDoc && earliestDoc.scanTimestamp) {
+          let baseDate = earliestDoc.scanTimestamp.toDate();
+          let [qH, qM] = anyDoc.qrStartTime.split(':').map(Number);
+          let kariDate = new Date(baseDate);
+          kariDate.setHours(qH, qM, 0, 0);
+          if (kariDate > baseDate) { kariDate.setDate(kariDate.getDate() - 1); }
+          return { time: kariDate, isKari: true, label: `${anyDoc.qrStartTime}(仮)` };
+        }
+      }
+      return { time: null, isKari: false, label: "Start無" };
+    }
+
+    function formatTime(dateObj) {
+      if (!dateObj) return "";
+      const d = new Date(dateObj);
+      const D = d.getDate();
+      const h = String(d.getHours()).padStart(2, '0');
+      const m = String(d.getMinutes()).padStart(2, '0');
+      const s = String(d.getSeconds()).padStart(2, '0');
+      return `${D}日 ${h}:${m}:${s}`;
+    }
+
+    function formatElapsed(diffMs) {
+      if (diffMs < 0) return "Err"; 
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
+      return `${String(diffHrs).padStart(2, '0')}:${String(diffMins).padStart(2, '0')}:${String(diffSecs).padStart(2, '0')}`;
+    }
+
+    async function generateExcel() {
+      const statusDiv = document.getElementById('status');
+      statusDiv.innerHTML = '📥 データを取得・解析中... しばらくお待ちください。';
+      statusDiv.style.color = '#003366';
+      
+      try {
+        const locSnap = await firestore.collection("locations_master_spring").orderBy("id", "asc").get();
+        let locations = [];
+        locSnap.forEach(doc => locations.push(doc.data()));
+        
+        const scanSnap = await firestore.collection('scans_spring_2026').get();
+        if (scanSnap.empty) {
+          statusDiv.innerHTML = '❌ データが見つかりませんでした。';
+          statusDiv.style.color = 'red';
+          return;
+        }
+        
+        const runnerMap = new Map();
+        scanSnap.forEach(doc => {
+          const d = doc.data();
+          const bib = d.bibNumber;
+          if (!runnerMap.has(bib)) runnerMap.set(bib, { docs: [] });
+          runnerMap.get(bib).docs.push(d);
+        });
+        
+        const deptLocs = {};
+        const goalLocations = {};
+        const waypointsDict = {};
+        const targetDivisions = ['E', 'L', 'M', 'S']; 
+        
+        targetDivisions.forEach(div => {
+          let locsForDiv = locations.filter(l => l.divisions && l.divisions.includes(div) && String(l.id) !== "1" && String(l.id) !== "99");
+          locsForDiv.sort((a, b) => (a.distances[div] || 0) - (b.distances[div] || 0)); 
+          deptLocs[div] = locsForDiv;
+          goalLocations[div] = locsForDiv[locsForDiv.length - 1]; 
+          waypointsDict[div] = locsForDiv.filter(l => String(l.id) !== "2" && String(l.id) !== String(goalLocations[div].id));
+        });
+        
+        let runnersList = [];
+        runnerMap.forEach((entry, bib) => {
+          const docs = entry.docs;
+          const firstDoc = docs[0];
+          const division = firstDoc.division;
+          if (!targetDivisions.includes(division)) return; 
+          
+          const gender = firstDoc.gender || "不明";
+          let effStart = getEffectiveStartTime(docs);
+          
+          let isRetire = docs.some(d => String(d.id) === "99");
+          let maxLocIndex = -1;
+          let maxLocTimeMs = 0;
+          let goalTimeMs = null;
+          let goalTimeObj = null;
+          
+          let locTimes = {};
+          let divLocs = deptLocs[division];
+          let goalLocId = goalLocations[division] ? String(goalLocations[division].id) : null;
+          
+          divLocs.forEach((loc, index) => {
+            let scan = docs.find(d => String(d.id) === String(loc.id));
+            if (scan && scan.scanTimestamp) {
+              let ts = scan.scanTimestamp.toMillis();
+              locTimes[loc.id] = scan.scanTimestamp.toDate();
+              if (index > maxLocIndex) {
+                maxLocIndex = index;
+                maxLocTimeMs = ts; 
+              }
+              if (String(loc.id) === goalLocId) {
+                goalTimeMs = ts;
+                goalTimeObj = scan.scanTimestamp.toDate();
+              }
+            } else {
+              locTimes[loc.id] = null;
+            }
+          });
+          
+          let isFinisher = false;
+          let elapsedMs = 0;
+          let elapsedStr = "DNF";
+          
+          if (goalTimeMs && !isRetire && effStart.time) {
+            isFinisher = true;
+            elapsedMs = goalTimeMs - effStart.time.getTime();
+            elapsedStr = formatElapsed(elapsedMs);
+          }
+          
+          let startStr = effStart.time ? formatTime(effStart.time) : "Start無";
+          if (effStart.isKari) startStr += "(仮)";
+          
+          runnersList.push({
+            bib: bib, name: firstDoc.runnerName, division: division, gender: gender,
+            startStr: startStr, locTimes: locTimes, goalTimeObj: goalTimeObj,
+            isFinisher: isFinisher, elapsedMs: elapsedMs, elapsedStr: elapsedStr,
+            maxLocIndex: maxLocIndex, maxLocTimeMs: maxLocTimeMs
+          });
+        });
+        
+        // Excelワークブックの新規作成
+        const wb = XLSX.utils.book_new();
+        
+        targetDivisions.forEach(div => {
+          let divRunners = runnersList.filter(r => r.division === div);
+          if (divRunners.length === 0) return;
+          
+          // 【高度なソート】
+          // 1. 完走者を優先し、経過時間が短い順
+          // 2. DNFの場合は到達した最も遠い地点順 -> 同地点なら到着時間が早い順
+          divRunners.sort((a, b) => {
+            if (a.isFinisher && !b.isFinisher) return -1; 
+            if (!a.isFinisher && b.isFinisher) return 1;
+            if (a.isFinisher && b.isFinisher) return a.elapsedMs - b.elapsedMs;
+            if (a.maxLocIndex !== b.maxLocIndex) return b.maxLocIndex - a.maxLocIndex; 
+            return a.maxLocTimeMs - b.maxLocTimeMs; 
+          });
+          
+          let genderCount = {};
+          divRunners.forEach((r, index) => {
+            r.overallRank = index + 1; 
+            if (!genderCount[r.gender]) genderCount[r.gender] = 1;
+            r.genderRank = genderCount[r.gender]++; 
+          });
+          
+          let waypoints = waypointsDict[div] || [];
+          let excelData = [];
+          
+          // ヘッダー行
+          let headerRow = ["総合順位", "男女別順位", "ゼッケン", "氏名", "性別", "スタート時間"];
+          waypoints.forEach(wp => { headerRow.push(wp.name); });
+          headerRow.push("ゴール", "経過時間");
+          excelData.push(headerRow);
+          
+          // データ行
+          divRunners.forEach(r => {
+            let row = [r.overallRank, r.genderRank, r.bib, r.name, r.gender, r.startStr];
+            waypoints.forEach(wp => {
+              row.push(r.locTimes[wp.id] ? formatTime(r.locTimes[wp.id]) : "");
+            });
+            row.push(r.goalTimeObj ? formatTime(r.goalTimeObj) : "");
+            row.push(r.elapsedStr);
+            excelData.push(row);
+          });
+          
+          // 2次元配列をワークシートに変換してブックに追加（シート名は部門名）
+          const ws = XLSX.utils.aoa_to_sheet(excelData);
+          XLSX.utils.book_append_sheet(wb, ws, `${div}部門`);
+        });
+        
+        // Excelファイル(.xlsx)として書き出し
+        XLSX.writeFile(wb, "橘湾岸QR_リザルト.xlsx");
+        
+        statusDiv.innerHTML = '✅ Excelファイルのダウンロードが完了しました！';
+        statusDiv.style.color = 'green';
+        
+      } catch (error) {
+        console.error("集計エラー", error);
+        statusDiv.innerHTML = '❌ エラーが発生しました。コンソールを確認してください。';
+        statusDiv.style.color = 'red';
+      }
+    }
+  </script>
+</body>
+</html>
