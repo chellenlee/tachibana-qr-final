@@ -177,6 +177,7 @@
             bib: bib, name: firstDoc.runnerName, division: division, gender: genderExcel,
             effStart: effStart, locTimes: locTimes, goalTimeObj: goalTimeObj,
             isFinisher: isFinisher, elapsedMs: elapsedMs,
+            isRetire: isRetire, // リタイヤフラグを追加
             maxLocIndex: maxLocIndex, maxLocTimeMs: maxLocTimeMs
           });
         });
@@ -199,16 +200,15 @@
           let waypoints = waypointsDict[div] || [];
           let excelData = [];
           
-          // ヘッダー行から順位3列を削除
+          // ヘッダー行の一番右に「備考」を追加
           let headerRow = ["ゼッケン", "氏名", "性別", "スタート時間", "ｽﾀｰﾄ備考"];
           waypoints.forEach(wp => { headerRow.push(wp.name); });
-          headerRow.push("ゴール", "経過時間");
+          headerRow.push("ゴール", "経過時間", "備考");
           excelData.push(headerRow);
           
-          let startCol = "D"; // スタート時間はD列に変更
-          let goalColIndex = headerRow.length - 2; 
+          let startCol = "D"; // スタート時間はD列
+          let goalColIndex = headerRow.length - 3; // 「ゴール」列のインデックス
           let goalCol = getColLetter(goalColIndex);
-          let lastRow = divRunners.length + 1; 
           
           divRunners.forEach((r, index) => {
             let rowNum = index + 2; 
@@ -246,9 +246,12 @@
               row.push({ t: 's', v: "" });
             }
 
-            // 最終列：経過時間を「関数」として埋め込む（ゴールー時間 引く スタート時間）
+            // 経過時間を「関数」として埋め込む（ゴールー時間 引く スタート時間）
             let f_elapsed = `IF(AND(ISNUMBER(${goalCol}${rowNum}), ISNUMBER(${startCol}${rowNum})), ${goalCol}${rowNum}-${startCol}${rowNum}, "DNF")`;
             row.push({ f: f_elapsed, z: '[h]:mm:ss' });
+
+            // 最終列：リタイヤ表示
+            row.push(r.isRetire ? "リタイヤ" : "");
 
             excelData.push(row);
           });
