@@ -47,6 +47,7 @@
     firebase.initializeApp(firebaseConfig);
     const firestore = firebase.firestore();
 
+    // Excelの自動変換バグを防ぐため、スタート時間も明確な「月/日 時:分」フォーマットに変更
     function getEffectiveStartTime(docs) {
       let startDoc = docs.find(d => String(d.id) === "2");
       if (startDoc && startDoc.scanTimestamp) {
@@ -56,7 +57,12 @@
         if (startM >= 11) startH += 1;
         let roundedStart = new Date(sDate);
         roundedStart.setHours(startH, 0, 0, 0);
-        return { time: roundedStart, isKari: false, label: `${String(startH).padStart(2, '0')}:00` };
+        
+        let M = roundedStart.getMonth() + 1;
+        let D = roundedStart.getDate();
+        let h = String(roundedStart.getHours()).padStart(2, '0');
+        let m = String(roundedStart.getMinutes()).padStart(2, '0');
+        return { time: roundedStart, isKari: false, label: `${M}/${D} ${h}:${m}` };
       }
       let anyDoc = docs[0];
       if (anyDoc && anyDoc.qrStartTime) {
@@ -71,20 +77,15 @@
           let kariDate = new Date(baseDate);
           kariDate.setHours(qH, qM, 0, 0);
           if (kariDate > baseDate) { kariDate.setDate(kariDate.getDate() - 1); }
-          return { time: kariDate, isKari: true, label: `${anyDoc.qrStartTime}(仮)` };
+          
+          let M = kariDate.getMonth() + 1;
+          let D = kariDate.getDate();
+          let h = String(kariDate.getHours()).padStart(2, '0');
+          let m = String(kariDate.getMinutes()).padStart(2, '0');
+          return { time: kariDate, isKari: true, label: `${M}/${D} ${h}:${m} (仮)` };
         }
       }
       return { time: null, isKari: false, label: "Start無" };
-    }
-
-    function formatTime(dateObj) {
-      if (!dateObj) return "";
-      const d = new Date(dateObj);
-      const D = d.getDate();
-      const h = String(d.getHours()).padStart(2, '0');
-      const m = String(d.getMinutes()).padStart(2, '0');
-      const s = String(d.getSeconds()).padStart(2, '0');
-      return `${D}日 ${h}:${m}:${s}`;
     }
 
     // 列番号(0,1,2...)をExcelの列アルファベット(A,B,C...)に変換する関数
@@ -157,6 +158,7 @@
             let scan = docs.find(d => String(d.id) === String(loc.id));
             if (scan && scan.scanTimestamp) {
               let ts = scan.scanTimestamp.toMillis();
+              // ここでは文字列化せず、Dateオブジェクトのまま保持する
               locTimes[loc.id] = scan.scanTimestamp.toDate();
               if (index > maxLocIndex) {
                 maxLocIndex = index;
@@ -181,10 +183,7 @@
             elapsedMs = goalTimeMs - effStart.time.getTime();
           }
           
-          let startStr = effStart.time ? formatTime(effStart.time) : "Start無";
-          if (effStart.isKari) startStr += "(仮)";
-          
-          // 性別データの表記ゆれをExcel用の数式で使いやすいよう「男」「女」に統一
+          // 性別データの表記ゆれをExcel関数用に統一
           let rawGender = firstDoc.gender || "";
           let genderExcel = rawGender;
           if(rawGender === "M" || rawGender === "male" || rawGender === "男子") genderExcel = "男";
@@ -192,7 +191,7 @@
 
           runnersList.push({
             bib: bib, name: firstDoc.runnerName, division: division, gender: genderExcel,
-            startStr: startStr, locTimes: locTimes, goalTimeObj: goalTimeObj,
+            startStr: effStart.label, locTimes: locTimes, goalTimeObj: goalTimeObj,
             isFinisher: isFinisher, isDNF: isDNF, elapsedMs: elapsedMs,
             maxLocIndex: maxLocIndex, maxLocTimeMs: maxLocTimeMs
           });
@@ -204,7 +203,7 @@
           let divRunners = runnersList.filter(r => r.division === div);
           if (divRunners.length === 0) return;
           
-          // 初期の並び順（完走者を上に、DNFは進んだ距離が長い順に下へ）
+          // 並べ替えロジック
           divRunners.sort((a, b) => {
             if (a.isFinisher && !b.isFinisher) return -1; 
             if (!a.isFinisher && b.isFinisher) return 1;
@@ -216,60 +215,65 @@
           let waypoints = waypointsDict[div] || [];
           let excelData = [];
           
-          // 【ヘッダー行の作成】
           let headerRow = ["総合順位", "男子順位", "女子順位", "ゼッケン", "氏名", "性別", "スタート時間"];
           waypoints.forEach(wp => { headerRow.push(wp.name); });
           headerRow.push("ゴール", "経過時間");
           excelData.push(headerRow);
           
-          // 列の位置を自動計算
-          let genderCol = "F"; // 性別はF列固定
-          let timeColIndex = headerRow.length - 1; // 経過時間は一番最後の列
-          let timeCol = getColLetter(timeColIndex); // "S"や"Z"などのアルファベットを取得
-          let lastRow = divRunners.length + 1; // ヘッダーが1行目なのでデータ末尾の行数
+          let genderCol = "F"; 
+          let timeColIndex = headerRow.length - 1; 
+          let timeCol = getColLetter(timeColIndex); 
+          let lastRow = divRunners.length + 1; 
           
-          // 【データ行の作成（関数の埋め込み）】
           divRunners.forEach((r, index) => {
-            let rowNum = index + 2; // 現在の行番号（2行目からスタート）
+            let rowNum = index + 2; 
 
-            // Excelに埋め込むための高度な順位計算式
+            // 関数埋め込み
             let f_overall = `IF(ISTEXT(${timeCol}${rowNum}), "-", RANK(${timeCol}${rowNum}, ${timeCol}$2:${timeCol}$${lastRow}, 1))`;
             let f_male = `IF(OR(ISTEXT(${timeCol}${rowNum}), ${genderCol}${rowNum}<>"男"), "-", COUNTIFS(${genderCol}$2:${genderCol}$${lastRow}, "男", ${timeCol}$2:${timeCol}$${lastRow}, "<"&${timeCol}${rowNum}) + 1)`;
             let f_female = `IF(OR(ISTEXT(${timeCol}${rowNum}), ${genderCol}${rowNum}<>"女"), "-", COUNTIFS(${genderCol}$2:${genderCol}$${lastRow}, "女", ${timeCol}$2:${timeCol}$${lastRow}, "<"&${timeCol}${rowNum}) + 1)`;
 
             let row = [
-              { t: 'n', f: f_overall }, // A列: 総合順位 (RANK関数)
-              { t: 'n', f: f_male },    // B列: 男子順位 (COUNTIFS関数)
-              { t: 'n', f: f_female },  // C列: 女子順位 (COUNTIFS関数)
+              { t: 'n', f: f_overall },
+              { t: 'n', f: f_male },
+              { t: 'n', f: f_female },
               r.bib,
               r.name,
               r.gender,
-              r.startStr
+              { t: 's', v: r.startStr } // スタート時間は文字として強制出力
             ];
 
-            // 各地点の通過時間
+            // 【完全対策】各地点の通過時間をExcelの純正日付データとして埋め込み、フォーマットを指定
             waypoints.forEach(wp => {
-              row.push(r.locTimes[wp.id] ? formatTime(r.locTimes[wp.id]) : "");
+              if (r.locTimes[wp.id]) {
+                row.push({ t: 'd', v: r.locTimes[wp.id], z: 'm/d h:mm:ss' });
+              } else {
+                row.push({ t: 's', v: "" });
+              }
             });
-            row.push(r.goalTimeObj ? formatTime(r.goalTimeObj) : "");
 
-            // 経過時間（計算可能にするため、文字列ではなく「シリアル値(数値)」で出力）
+            // ゴール時間も同様に対策
+            if (r.goalTimeObj) {
+              row.push({ t: 'd', v: r.goalTimeObj, z: 'm/d h:mm:ss' });
+            } else {
+              row.push({ t: 's', v: "" });
+            }
+
+            // 経過時間
             if (r.isDNF) {
               row.push({ t: 's', v: 'DNF' });
             } else {
-              let timeValue = r.elapsedMs / (1000 * 60 * 60 * 24); // Excelの「1日=1」の数値に変換
-              row.push({ t: 'n', v: timeValue, z: '[h]:mm:ss' }); // Excel上で 01:23:45 と表示させる
+              let timeValue = r.elapsedMs / (1000 * 60 * 60 * 24); 
+              row.push({ t: 'n', v: timeValue, z: '[h]:mm:ss' }); 
             }
 
             excelData.push(row);
           });
           
-          // シート作成と追加
           const ws = XLSX.utils.aoa_to_sheet(excelData);
           XLSX.utils.book_append_sheet(wb, ws, `${div}部門`);
         });
         
-        // xlsxの生成とダウンロード
         XLSX.writeFile(wb, "橘湾岸QR_リザルト.xlsx");
         
         statusDiv.innerHTML = '✅ Excelファイルのダウンロードが完了しました！';
