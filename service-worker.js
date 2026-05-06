@@ -1,60 +1,26 @@
-// 1. キャッシュの名前（バージョン）
-// アプリを更新するたびに、ここを 'v3', 'v4'... と書き換えてください
-const CACHE_NAME = 'qr-app-cache-v9';
+// 【自爆用】service-worker.js
 
-// 2. キャッシュするファイルの一覧
-// index.htmlで読み込んでいるURLと「一字一句」同じにする必要があります
-const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icon.png',
-  './icon-192.png',
-  // 外部ライブラリ（HTML側の記述と完全に一致させること）
-  'https://unpkg.com/@zxing/library@latest',
-  'https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js',
-  'https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js'
-];
+// インストールされたら即座に待機状態をスキップして起動
+self.addEventListener('install', (e) => {
+  self.skipWaiting();
+});
 
-// インストール時：キャッシュを作成してファイルを保存
-self.addEventListener('install', (event) => {
-  console.log('[Service Worker] Install');
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Caching all assets');
-      return cache.addAll(ASSETS_TO_CACHE);
+// 起動した瞬間に、スマホ内に保持している過去のキャッシュを全て爆破（削除）する
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          return caches.delete(cacheName);
+        })
+      );
+    }).then(() => {
+      self.clients.claim();
     })
   );
 });
 
-// アクティベート時：古いキャッシュ（v1など）を削除
-self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] Activate');
-  event.waitUntil(
-    caches.keys().then((keyList) => {
-      return Promise.all(keyList.map((key) => {
-        // 現在のCACHE_NAMEと違う名前のキャッシュは全て削除
-        if (key !== CACHE_NAME) {
-          console.log('[Service Worker] Removing old cache:', key);
-          return caches.delete(key);
-        }
-      }));
-    })
-  );
-  // 新しいService Workerをすぐにページに適用させる
-  return self.clients.claim();
-});
-
-// フェッチ（通信）時：キャッシュがあればそれを返す（オフライン対応の要）
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      // 1. キャッシュに見つかればそれを返す
-      if (response) {
-        return response;
-      }
-      // 2. なければネットワークに取りに行く
-      return fetch(event.request);
-    })
-  );
+// 以降の通信は一切キャッシュを使わず、常にサーバーから最新のファイル(終了画面)を取得する
+self.addEventListener('fetch', (e) => {
+  e.respondWith(fetch(e.request));
 });
